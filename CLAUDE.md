@@ -2,23 +2,49 @@
 
 ## Project overview
 
-**easywork** is an enterprise-grade document management system inspired by [paperless-ngx](https://docs.paperless-ngx.com/). It centralises, OCRs, indexes and serves digital documents with a clean, modern UI. The project targets production deployments in corporate environments and must satisfy security, compliance, and reliability standards accordingly.
+**easywork** is an enterprise-grade Document Management System (DMS) inspired by
+[paperless-ngx](https://github.com/paperless-ngx/paperless-ngx). It centralises,
+OCRs, classifies and retrieves documents with as little manual configuration as
+possible.
+
+Dual target: **family** (simplicity, zero config, mobile-first) and **SME** (RBAC,
+audit, compliance) — same codebase, configuration-only differences between
+deployments.
+
+Key differentiators vs. paperless-ngx:
+- Automatic classification suggestions (no rules to write)
+- Duplicate detection before processing
+- Smart OCR skipping when native text already exists
+- Two navigation views: tag view and folder tree (`Type → Correspondent → Year`)
+- Optional Nextcloud connector (bidirectional metadata sync)
 
 ---
 
 ## Repository structure
 
-This is a **monorepo**. Never collapse the two applications into one module.
+This is a **monorepo**. Never collapse applications into one module.
 
 ```
 easywork/
-├── backend/          # Java / Spring Boot API
-├── frontend/         # Next.js / React UI
-├── docs/             # Architecture decisions, API specs, runbooks
-├── e2e/              # Cross-stack end-to-end tests (Playwright)
-├── .claude/          # Claude Code configuration (agents, hooks, settings)
+├── backend/                  # Spring Boot API + domain services
+│   ├── doc-service/          # Document metadata, lifecycle, RBAC
+│   ├── ingest-worker/        # Async OCR/extraction pipeline
+│   └── search-service/       # Search index management
+├── frontend/                 # Next.js / React SPA
+├── deploy/
+│   └── helm/
+│       └── easywork/         # Production Helm chart (see Helm section)
+├── docs/
+│   └── adr/                  # Architecture Decision Records (MADR format)
+├── e2e/                      # Cross-stack Playwright tests
+├── compose.yml               # Local dev only — not a production target
+├── .claude/                  # Claude Code agents, hooks, settings
 └── CLAUDE.md
 ```
+
+> The backend sub-modules share a parent Maven POM. Each runs as an independent
+> Spring Boot application. Do not couple them at compile time via shared JPA
+> entities — use shared DTOs via a `common` module if needed.
 
 ---
 
@@ -29,13 +55,21 @@ easywork/
 |---|---|
 | Language | Java 21 (LTS) |
 | Framework | Spring Boot 3.x (latest stable) |
-| Build | Maven (generated via [start.spring.io](https://start.spring.io)) |
+| Build | Maven multi-module (generated via [start.spring.io](https://start.spring.io)) |
 | DB (production) | PostgreSQL 16+ |
-| DB (local / CI) | H2 (in-memory, compatibility mode `MODE=PostgreSQL`) |
+| DB (local / CI) | H2 (in-memory, `MODE=PostgreSQL`) |
 | Auth | Spring Security + OAuth2 / OIDC (Keycloak-compatible) |
+| RBAC / Audit | Spring Security `@PreAuthorize` + Spring Data Envers |
 | API | REST (OpenAPI 3.1, contract-first with springdoc) |
-| Messaging | Spring Events (internal); RabbitMQ optional for async OCR |
-| Testing | JUnit 5, Mockito, Testcontainers (Postgres for integration) |
+| File storage | MinIO (S3-compatible) |
+| Search | Meilisearch (default) / Elasticsearch (enterprise option) |
+| Async messaging | RabbitMQ (default) / Kafka (high-throughput option) |
+| Content extraction | Apache Tika |
+| OCR | Tesseract via Tess4J |
+| Archiving format | PDF/A (long-term preservation) |
+| Observability | Spring Boot Actuator + Micrometer |
+| Testing | JUnit 5, Mockito, Testcontainers |
+| Native image | GraalVM (optional — for NAS / Raspberry Pi deployments) |
 
 ### Frontend (`frontend/`)
 | Concern | Choice |
@@ -43,7 +77,8 @@ easywork/
 | Language | TypeScript (strict mode) |
 | Framework | Next.js 15+ App Router (generated via `create-next-app`) |
 | UI | shadcn/ui + Tailwind CSS |
-| State | Zustand or React Query (TanStack Query) |
+| Typography | Fraunces (headings) / Inter (UI) / IBM Plex Mono (metadata) |
+| State | TanStack Query (server state) + Zustand (client state) |
 | Auth | NextAuth.js (delegates to backend OIDC) |
 | Testing | Vitest (unit), Playwright (e2e) |
 
@@ -51,17 +86,21 @@ easywork/
 
 ## Initialising the project
 
-> **Do not hand-write scaffolding.** Always use the official generators, then layer configuration on top.
+> **Do not hand-write scaffolding.** Always use the official generators, then layer
+> configuration on top.
 
 ### Backend
 ```bash
-# Visit https://start.spring.io and download with:
+# For each sub-module, generate via https://start.spring.io:
 # - Project: Maven, Language: Java, Spring Boot: latest stable
-# - Group: fr.easywork, Artifact: backend
-# - Dependencies: Spring Web, Spring Data JPA, Spring Security,
+# - Group: fr.classeur, Artifact: doc-service (or ingest-worker / search-service)
+# - Common dependencies: Spring Web, Spring Data JPA, Spring Security,
 #   Spring Validation, H2, PostgreSQL Driver, Flyway, Lombok,
 #   springdoc-openapi, Spring Boot Actuator
-unzip backend.zip -d backend/
+# - doc-service adds: Spring Data Envers
+# - ingest-worker adds: Spring AMQP (RabbitMQ), Apache Tika, Tess4J
+# - search-service adds: Meilisearch Java client or Spring Data Elasticsearch
+unzip <module>.zip -d backend/<module>/
 ```
 
 ### Frontend
@@ -81,34 +120,69 @@ npx create-next-app@latest . \
 ## Database
 
 ### Local development
-- Driver: H2 with `spring.datasource.url=jdbc:h2:mem:easywork;MODE=PostgreSQL;DB_CLOSE_DELAY=-1`
+- Driver: H2 — `jdbc:h2:mem:classeur;MODE=PostgreSQL;DB_CLOSE_DELAY=-1`
 - Schema managed by **Flyway** (`src/main/resources/db/migration/`)
 - Seed data via `import.sql` (H2 only, gitignored for sensitive data)
 
 ### Production
 - PostgreSQL 16+
 - Credentials injected via environment variables, **never hardcoded**
-- Flyway runs migrations on startup; migration scripts are version-controlled and **never modified after merge**
+- Flyway runs on startup; scripts are version-controlled and **immutable after merge**
 
 ### Flyway rules
-- Script naming: `V{major}_{minor}__{description}.sql` (e.g. `V1_0__create_document_table.sql`)
+- Naming: `V{major}_{minor}__{description}.sql` (e.g. `V1_0__create_document_table.sql`)
 - One logical change per migration
-- Migrations are **immutable** once merged to `main`
+- Never modify or delete a migration that has been merged to `main`
+- Destructive changes (drop column, rename) require a prior deprecation ADR
+
+---
+
+## Document lifecycle
+
+Every document follows this state machine — no skipping states:
+
+```
+Received → Extracting → OCR → Classifying → Ready (Active)
+                                                  │
+                                             Archived
+                                                  │
+                                               Trash          ← always passes through Trash
+                                                  │
+                                        Permanent deletion
+```
+
+- Retention policies are **automatic** and configurable per document type
+- Purge events are written to an **immutable audit log** (Spring Data Envers)
+- GDPR right to erasure: real deletion from PostgreSQL, MinIO, and search index;
+  only the audit entry survives (without personal data)
+- Long-term archiving uses **PDF/A** format
+
+---
+
+## GDPR & compliance
+
+- Right to erasure must delete from all three stores: DB, object store, search index
+- Audit log of deletions is kept without personal data
+- No personal data in logs (see logging rules below)
+- Data minimisation: do not extract or store more metadata than strictly needed
+- Add a GDPR impact note to ADRs that introduce new personal data fields
 
 ---
 
 ## Testing requirements
 
-Tests are **mandatory** for every feature or code change. PRs that omit tests are blocked.
+Tests are **mandatory** for every feature or code change. PRs without tests are blocked.
 
 ### Backend
 | Layer | Tooling | Scope |
 |---|---|---|
 | Unit | JUnit 5 + Mockito | Services, domain logic, mappers |
-| Integration | JUnit 5 + Testcontainers (Postgres) | Repositories, REST controllers (`@SpringBootTest`) |
-| Contract | Spring REST Docs or Pact | API contracts exposed to frontend |
+| Integration | JUnit 5 + Testcontainers | Repositories, REST controllers (`@SpringBootTest`) |
+| Contract | Spring REST Docs or Pact | API contracts consumed by frontend |
 
-- Minimum coverage gate: **80 % line coverage** (enforced by JaCoCo in CI)
+- Testcontainers spins up real Postgres, MinIO, and RabbitMQ — no mocking of
+  infrastructure in integration tests
+- Minimum coverage gate: **80 % line coverage** (JaCoCo enforced in CI)
 - Tests live in `src/test/java/`, mirroring the main package structure
 
 ### Frontend
@@ -120,7 +194,7 @@ Tests are **mandatory** for every feature or code change. PRs that omit tests ar
 ### End-to-end
 - Location: `e2e/` at repo root
 - Tooling: **Playwright** (TypeScript)
-- Runs against a Docker Compose stack (backend + frontend + Postgres)
+- Runs against a full Docker Compose stack
 - Must cover every user-facing happy path and critical error path
 
 ---
@@ -152,43 +226,49 @@ Tests are **mandatory** for every feature or code change. PRs that omit tests ar
 This is an **enterprise-grade** application. Security is not optional.
 
 - Authentication: OAuth2/OIDC only — no custom username/password endpoints without review
-- Authorisation: method-level `@PreAuthorize` / role-based; least-privilege principle
-- Secrets: environment variables or a secrets manager (Vault) — never in source
-- Dependencies: OWASP Dependency-Check runs in CI; CVSS ≥ 7 blocks merge
+- Authorisation: `@PreAuthorize` at service layer; RBAC enforced, least-privilege principle
+- Secrets: environment variables or Vault — never in source
+- Dependencies: OWASP Dependency-Check in CI; CVSS ≥ 7 blocks merge
 - HTTP headers: Spring Security configures HSTS, CSP, X-Frame-Options, etc.
-- Input validation: Bean Validation (`@Valid`) on all controller inputs; validate again in domain
-- File uploads: validate MIME type server-side; store outside webroot; scan with ClamAV in async pipeline
-- Logging: never log personal data or credentials; use structured JSON logs (Logback + logstash-logback-encoder)
-- CORS: explicit allowlist; wildcard `*` is forbidden in production
+- Input validation: Bean Validation (`@Valid`) on all controller inputs; re-validate in domain
+- File uploads: validate MIME type server-side (Apache Tika); store in MinIO outside webroot;
+  scan with ClamAV in async pipeline
+- Logging: never log personal data or credentials; structured JSON (Logback + logstash-logback-encoder)
+- CORS: explicit allowlist; wildcard `*` forbidden in production
 
 ---
 
 ## Agents
 
-The following Claude Code agents are active for this project. Each agent runs in its own worktree and reports before any change is merged.
+The following Claude Code agents are active for this project.
 
 ### `/security-review`
-Scans diffs for OWASP Top 10, secrets exposure, missing auth guards, and unsafe file handling. Blocks merge on HIGH findings.
+Scans diffs for OWASP Top 10, secrets exposure, missing auth guards, unsafe file
+handling, and GDPR violations. Blocks merge on HIGH findings.
 
-### `/code-review`  
-Reviews for correctness, code style compliance, dead code, and missing tests. Maps to the standards in this file.
+### `/code-review`
+Reviews for correctness, style compliance, dead code, missing tests, and API
+contract violations. Maps to the standards in this file.
 
 ### `/plan`
-Produces an implementation plan before any non-trivial feature starts. Output must be approved before coding begins.
+Produces an implementation plan before any non-trivial feature starts. Output must
+be approved before coding begins.
 
 ### `/simplify`
-Runs after implementation: removes duplication, unnecessary abstractions, and altitude issues.
+Runs after implementation: removes duplication, unnecessary abstractions, and
+altitude issues.
 
 ### `update-config`
-Manages `.claude/settings.json`, hooks, and permissions. All automated behaviours (pre-commit checks, on-save linting) are configured here — not in memory.
+Manages `.claude/settings.json`, hooks, and permissions. All automated behaviours
+are configured here — not in memory.
 
 ---
 
 ## Development workflow
 
-1. **Plan first** — run `/plan` for any task requiring more than a handful of file changes.
+1. **Plan first** — run `/plan` for any task spanning more than 3 files.
 2. **Branch** from `main` — `git checkout -b feat/<short-description>` or `fix/<short-description>`.
-3. **Write tests first** for new behaviour (TDD preferred, at minimum tests must accompany code).
+3. **Write tests first** for new behaviour (TDD preferred; tests must accompany code at minimum).
 4. **Run quality checks locally** before pushing:
    ```bash
    # Backend
@@ -201,19 +281,27 @@ Manages `.claude/settings.json`, hooks, and permissions. All automated behaviour
    cd e2e && npx playwright test
    ```
 5. **Open a PR** — title must follow Conventional Commits (`feat:`, `fix:`, `chore:`, etc.).
-6. **Agents run automatically** — security-review, code-review, and simplify must all pass (or be explicitly dismissed with justification).
+6. **Agents run automatically** — security-review, code-review, and simplify must all pass
+   (or be explicitly dismissed with justification).
 7. **Squash merge** to `main`.
 
 ---
 
 ## Environment variables
 
-| Variable | Used by | Description |
+| Variable | Service | Description |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` | backend | JDBC URL (Postgres in prod) |
-| `SPRING_DATASOURCE_USERNAME` | backend | DB username |
-| `SPRING_DATASOURCE_PASSWORD` | backend | DB password |
-| `SPRING_SECURITY_OAUTH2_*` | backend | OIDC issuer / client config |
+| `SPRING_DATASOURCE_URL` | all backend | JDBC URL (Postgres in prod) |
+| `SPRING_DATASOURCE_USERNAME` | all backend | DB username |
+| `SPRING_DATASOURCE_PASSWORD` | all backend | DB password |
+| `SPRING_SECURITY_OAUTH2_*` | doc-service | OIDC issuer / client config |
+| `MINIO_ENDPOINT` | doc-service, ingest-worker | MinIO URL |
+| `MINIO_ACCESS_KEY` | doc-service, ingest-worker | MinIO access key |
+| `MINIO_SECRET_KEY` | doc-service, ingest-worker | MinIO secret key |
+| `MINIO_BUCKET` | doc-service, ingest-worker | Target bucket name |
+| `MEILISEARCH_HOST` | search-service | Meilisearch URL |
+| `MEILISEARCH_API_KEY` | search-service | Meilisearch master key |
+| `SPRING_RABBITMQ_HOST` | ingest-worker | RabbitMQ host |
 | `NEXTAUTH_SECRET` | frontend | NextAuth signing secret |
 | `NEXTAUTH_URL` | frontend | Public URL of the frontend |
 | `NEXT_PUBLIC_API_URL` | frontend | Base URL of the backend API |
@@ -222,28 +310,124 @@ Never commit `.env` files. Provide `.env.example` with placeholder values.
 
 ---
 
-## Docker Compose (local full-stack)
+## Local development — Docker Compose
 
-A `compose.yml` at repo root starts the full stack:
+`compose.yml` at repo root is the **local-only** stack. It is not the production
+deployment target — enterprises use the Helm chart (see below).
 
 ```yaml
 # compose.yml (to be created during setup)
 services:
   postgres:
     image: postgres:16-alpine
-  backend:
-    build: ./backend
-    depends_on: [postgres]
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+  meilisearch:
+    image: getmeili/meilisearch:latest
+  doc-service:
+    build: ./backend/doc-service
+    depends_on: [postgres, minio, rabbitmq]
+  ingest-worker:
+    build: ./backend/ingest-worker
+    depends_on: [postgres, minio, rabbitmq]
+  search-service:
+    build: ./backend/search-service
+    depends_on: [meilisearch, rabbitmq]
   frontend:
     build: ./frontend
-    depends_on: [backend]
+    depends_on: [doc-service]
 ```
+
+---
+
+## Production deployment — Helm chart
+
+Enterprise and SME deployments target **Kubernetes**. A first-party Helm chart
+lives at `deploy/helm/easywork/`.
+
+### Chart structure
+
+```
+deploy/
+└── helm/
+    └── easywork/
+        ├── Chart.yaml
+        ├── values.yaml              # defaults (all features on, reasonable sizing)
+        ├── values-family.yaml       # overlay: single replica, minimal resources
+        ├── values-sme.yaml          # overlay: HA, HPA, PodDisruptionBudget
+        ├── templates/
+        │   ├── doc-service/         # Deployment, Service, HPA, PDB
+        │   ├── ingest-worker/       # Deployment, HPA (CPU-driven, OCR-heavy)
+        │   ├── search-service/      # Deployment, Service
+        │   ├── frontend/            # Deployment, Service, Ingress
+        │   ├── ingress.yaml         # Single Ingress for the full stack
+        │   ├── serviceaccount.yaml
+        │   ├── rbac.yaml
+        │   └── _helpers.tpl
+        └── charts/                  # Sub-chart dependencies (bitnami)
+```
+
+### External dependencies (sub-charts from Bitnami)
+
+The chart uses official Bitnami sub-charts for stateful services. Never run
+databases or message brokers as raw Deployments.
+
+| Service | Sub-chart | Notes |
+|---|---|---|
+| PostgreSQL | `bitnami/postgresql` | Primary + read replica in SME values |
+| MinIO | `bitnami/minio` | Distributed mode in SME values |
+| RabbitMQ | `bitnami/rabbitmq` | Clustered in SME values |
+| Meilisearch | `meilisearch/meilisearch` | Single instance; swap for ES in enterprise |
+
+### Key design rules for the chart
+
+- All secrets are injected via `secretKeyRef` — never `value:` for credentials
+- Use **external-secrets-operator** annotation pattern when a Vault/AWS SM backend
+  is configured; fall back to Kubernetes Secrets otherwise
+- `resources.requests` and `resources.limits` must be set on every container
+- `readinessProbe` and `livenessProbe` must be configured for every application container
+  (use the Spring Boot Actuator `/actuator/health` endpoint)
+- `PodDisruptionBudget` required for all stateful-adjacent services in SME profile
+- `HorizontalPodAutoscaler` on `ingest-worker` (CPU metric — OCR is CPU-bound)
+- `NetworkPolicy` denies all ingress/egress by default; only open required ports
+- Images must be pinned to a digest or an immutable tag — never `latest`
+- Ingress uses `cert-manager` for TLS (`ClusterIssuer: letsencrypt-prod`)
+
+### Installing locally (kind / minikube)
+
+```bash
+helm dependency update deploy/helm/easywork
+helm install easywork deploy/helm/easywork \
+  --namespace easywork --create-namespace \
+  -f deploy/helm/easywork/values-family.yaml \
+  --set global.postgresql.auth.password=dev
+```
+
+### CI/CD
+
+- `helm lint` and `helm template | kubeval` run in CI on every PR that touches `deploy/`
+- Chart version bumps follow SemVer and are decoupled from application version
+- `ct` (chart-testing) runs an install + test cycle in the CI cluster
 
 ---
 
 ## Decisions log
 
-Significant architectural decisions are recorded as **ADR** files in `docs/adr/` using the [MADR](https://adr.github.io/madr/) template. When you introduce a meaningful technical choice, create an ADR before opening the PR.
+Significant architectural decisions are recorded as **ADR** files in `docs/adr/`
+using the [MADR](https://adr.github.io/madr/) template. Create an ADR before
+opening a PR that introduces a meaningful technical choice or changes a prior decision.
+
+Existing decisions (from pre-project exploration):
+- Java / Spring Boot chosen over Python, Node, .NET, Go, Rust — OCR ecosystem,
+  RBAC/audit maturity, Spring Data Envers
+- Meilisearch as default search (simpler ops); Elasticsearch as enterprise option
+- RabbitMQ as default queue; Kafka for high-throughput deployments
+- GraalVM native image deferred — only if NAS/Raspberry Pi target is confirmed
+- Nextcloud integration: bidirectional metadata sync, optional connector model
+- Retention: automatic per document type, always through Trash, immutable audit log
 
 ---
 
@@ -252,7 +436,10 @@ Significant architectural decisions are recorded as **ADR** files in `docs/adr/`
 - Hardcode credentials, tokens, or secrets in any file
 - Bypass Spring Security filter chains or disable CSRF without explicit instruction
 - Use `@SuppressWarnings` or ESLint `disable` comments without a justification comment
-- Write Flyway migrations that modify or drop existing columns without a deprecation ADR
-- Merge test coverage below 80 % gate
-- Skip the `/plan` step for features spanning more than 3 files
+- Write Flyway migrations that modify or drop columns without a prior deprecation ADR
+- Let test coverage fall below the 80 % gate
+- Skip `/plan` for features spanning more than 3 files
 - Use `any` in TypeScript or raw types in Java
+- Delete from only one store (DB, MinIO, or search index) without deleting from all three
+- Log personal data, document content, or credentials
+- Store files in PostgreSQL — binary content always goes to MinIO
