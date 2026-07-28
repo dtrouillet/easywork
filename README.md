@@ -1,4 +1,4 @@
-# Classeur
+# easywork
 > A Document Management System (DMS) inspired by paperless-ngx — designed to
 > be as easy to use for a family as it is robust for an SME.
 
@@ -12,7 +12,7 @@
 open-source DMS, but it requires a fair amount of technical configuration
 (sorting rules, folders, etc.) to become truly useful.
 
-**Classeur** starts from the same need — scan, OCR, classify and retrieve
+**easywork** starts from the same need — scan, OCR, classify and retrieve
 documents — with two different priorities:
 
 - **A noticeably simpler user experience**, with as little manual

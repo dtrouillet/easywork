@@ -5,7 +5,7 @@
 **easywork** is an enterprise-grade Document Management System (DMS) inspired by
 [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx). It centralises,
 OCRs, classifies and retrieves documents with as little manual configuration as
-possible. The user-facing product name is **Classeur**.
+possible.
 
 Dual target: **family** (simplicity, zero config, mobile-first) and **SME** (RBAC,
 audit, compliance) — same codebase, configuration-only differences between
