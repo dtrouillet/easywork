@@ -1,11 +1,11 @@
-# CLAUDE.md — Classeur (repo: easywork)
+# CLAUDE.md — easywork
 
 ## Project overview
 
-**Classeur** is an enterprise-grade Document Management System (DMS) inspired by
+**easywork** is an enterprise-grade Document Management System (DMS) inspired by
 [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx). It centralises,
 OCRs, classifies and retrieves documents with as little manual configuration as
-possible.
+possible. The user-facing product name is **Classeur**.
 
 Dual target: **family** (simplicity, zero config, mobile-first) and **SME** (RBAC,
 audit, compliance) — same codebase, configuration-only differences between
@@ -25,15 +25,19 @@ Key differentiators vs. paperless-ngx:
 This is a **monorepo**. Never collapse applications into one module.
 
 ```
-classeur/                     (repo: easywork)
+easywork/
 ├── backend/                  # Spring Boot API + domain services
 │   ├── doc-service/          # Document metadata, lifecycle, RBAC
 │   ├── ingest-worker/        # Async OCR/extraction pipeline
 │   └── search-service/       # Search index management
 ├── frontend/                 # Next.js / React SPA
+├── deploy/
+│   └── helm/
+│       └── easywork/         # Production Helm chart (see Helm section)
 ├── docs/
 │   └── adr/                  # Architecture Decision Records (MADR format)
 ├── e2e/                      # Cross-stack Playwright tests
+├── compose.yml               # Local dev only — not a production target
 ├── .claude/                  # Claude Code agents, hooks, settings
 └── CLAUDE.md
 ```
@@ -306,9 +310,10 @@ Never commit `.env` files. Provide `.env.example` with placeholder values.
 
 ---
 
-## Docker Compose (local full-stack)
+## Local development — Docker Compose
 
-A `compose.yml` at repo root starts the full infrastructure:
+`compose.yml` at repo root is the **local-only** stack. It is not the production
+deployment target — enterprises use the Helm chart (see below).
 
 ```yaml
 # compose.yml (to be created during setup)
@@ -335,6 +340,77 @@ services:
     build: ./frontend
     depends_on: [doc-service]
 ```
+
+---
+
+## Production deployment — Helm chart
+
+Enterprise and SME deployments target **Kubernetes**. A first-party Helm chart
+lives at `deploy/helm/easywork/`.
+
+### Chart structure
+
+```
+deploy/
+└── helm/
+    └── easywork/
+        ├── Chart.yaml
+        ├── values.yaml              # defaults (all features on, reasonable sizing)
+        ├── values-family.yaml       # overlay: single replica, minimal resources
+        ├── values-sme.yaml          # overlay: HA, HPA, PodDisruptionBudget
+        ├── templates/
+        │   ├── doc-service/         # Deployment, Service, HPA, PDB
+        │   ├── ingest-worker/       # Deployment, HPA (CPU-driven, OCR-heavy)
+        │   ├── search-service/      # Deployment, Service
+        │   ├── frontend/            # Deployment, Service, Ingress
+        │   ├── ingress.yaml         # Single Ingress for the full stack
+        │   ├── serviceaccount.yaml
+        │   ├── rbac.yaml
+        │   └── _helpers.tpl
+        └── charts/                  # Sub-chart dependencies (bitnami)
+```
+
+### External dependencies (sub-charts from Bitnami)
+
+The chart uses official Bitnami sub-charts for stateful services. Never run
+databases or message brokers as raw Deployments.
+
+| Service | Sub-chart | Notes |
+|---|---|---|
+| PostgreSQL | `bitnami/postgresql` | Primary + read replica in SME values |
+| MinIO | `bitnami/minio` | Distributed mode in SME values |
+| RabbitMQ | `bitnami/rabbitmq` | Clustered in SME values |
+| Meilisearch | `meilisearch/meilisearch` | Single instance; swap for ES in enterprise |
+
+### Key design rules for the chart
+
+- All secrets are injected via `secretKeyRef` — never `value:` for credentials
+- Use **external-secrets-operator** annotation pattern when a Vault/AWS SM backend
+  is configured; fall back to Kubernetes Secrets otherwise
+- `resources.requests` and `resources.limits` must be set on every container
+- `readinessProbe` and `livenessProbe` must be configured for every application container
+  (use the Spring Boot Actuator `/actuator/health` endpoint)
+- `PodDisruptionBudget` required for all stateful-adjacent services in SME profile
+- `HorizontalPodAutoscaler` on `ingest-worker` (CPU metric — OCR is CPU-bound)
+- `NetworkPolicy` denies all ingress/egress by default; only open required ports
+- Images must be pinned to a digest or an immutable tag — never `latest`
+- Ingress uses `cert-manager` for TLS (`ClusterIssuer: letsencrypt-prod`)
+
+### Installing locally (kind / minikube)
+
+```bash
+helm dependency update deploy/helm/easywork
+helm install easywork deploy/helm/easywork \
+  --namespace easywork --create-namespace \
+  -f deploy/helm/easywork/values-family.yaml \
+  --set global.postgresql.auth.password=dev
+```
+
+### CI/CD
+
+- `helm lint` and `helm template | kubeval` run in CI on every PR that touches `deploy/`
+- Chart version bumps follow SemVer and are decoupled from application version
+- `ct` (chart-testing) runs an install + test cycle in the CI cluster
 
 ---
 
