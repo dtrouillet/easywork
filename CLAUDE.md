@@ -22,14 +22,16 @@ Key differentiators vs. paperless-ngx:
 
 ## Repository structure
 
-This is a **monorepo**. Never collapse applications into one module.
+This is a **monorepo**.
 
 ```
 easywork/
-├── backend/                  # Spring Boot API + domain services
-│   ├── doc-service/          # Document metadata, lifecycle, RBAC
-│   ├── ingest-worker/        # Async OCR/extraction pipeline
-│   └── search-service/       # Search index management
+├── backend/                  # Spring Boot monolith (Spring Modulith)
+│   ├── src/main/java/fr/easywork/
+│   │   ├── document/         # Always active: domain, API, storage
+│   │   ├── ingest/           # @Profile("ingest"): OCR pipeline
+│   │   └── search/           # @Profile("search"): Meilisearch indexing
+│   └── Dockerfile            # Multi-stage: runtime / runtime-ocr targets
 ├── frontend/                 # Next.js / React SPA
 ├── deploy/
 │   └── helm/
@@ -42,9 +44,10 @@ easywork/
 └── CLAUDE.md
 ```
 
-> The backend sub-modules share a parent Maven POM. Each runs as an independent
-> Spring Boot application. Do not couple them at compile time via shared JPA
-> entities — use shared DTOs via a `common` module if needed.
+> The backend is a **Spring Modulith monolith** — one JAR, one Maven project,
+> modules activated by Spring profiles. In production, the same image is deployed
+> as separate pods with different `SPRING_PROFILES_ACTIVE` values.
+
 
 ---
 
@@ -54,8 +57,8 @@ easywork/
 | Concern | Choice |
 |---|---|
 | Language | Java 21 (LTS) |
-| Framework | Spring Boot 3.x (latest stable) |
-| Build | Maven multi-module (generated via [start.spring.io](https://start.spring.io)) |
+| Framework | Spring Boot 4.1.x (latest stable) + Spring Modulith 2.1.x |
+| Build | Maven single-module (generated via [start.spring.io](https://start.spring.io)) |
 | DB (production) | PostgreSQL 16+ |
 | DB (local / CI) | H2 (in-memory, `MODE=PostgreSQL`) |
 | Auth | Spring Security + OAuth2 / OIDC (Keycloak-compatible) |
