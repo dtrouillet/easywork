@@ -1,4 +1,4 @@
-﻿---
+---
 name: simplify
 description: Post-implementation cleanup agent. Removes duplication, unnecessary abstractions, over-engineered patterns, and dead code introduced during a feature. Run after a feature is complete and all tests pass, before opening the PR.
 model: claude-sonnet-5

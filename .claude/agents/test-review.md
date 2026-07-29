@@ -1,4 +1,4 @@
-﻿---
+---
 name: test-review
 description: Verifies that tests added or modified in a PR are meaningful, correctly structured, and meet the project's coverage and tooling requirements. Checks JaCoCo 80% gate compliance, Testcontainers usage for integration tests, and Playwright coverage for new user flows. Run on every PR alongside code-review.
 model: claude-sonnet-5

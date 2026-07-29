@@ -1,4 +1,4 @@
-﻿---
+---
 name: plan
 description: Produces a detailed implementation plan before any non-trivial feature or refactor. Use this agent before writing code whenever a task spans more than 3 files, introduces a new architectural component, or touches the ingest/OCR pipeline, Helm chart, or security layer. Returns a step-by-step plan with impacted files, risks, and test strategy that must be approved before coding begins.
 model: claude-sonnet-5

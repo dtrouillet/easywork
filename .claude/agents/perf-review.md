@@ -1,4 +1,4 @@
-﻿---
+---
 name: perf-review
 description: Reviews code changes for performance issues — N+1 queries, missing database indexes, unbounded list queries, inefficient OCR/ingest pipeline processing, and frontend rendering bottlenecks. Run on PRs that touch repository classes, service methods processing collections, the ingest pipeline, or data-heavy React components.
 model: claude-sonnet-5

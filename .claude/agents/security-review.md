@@ -1,4 +1,4 @@
-﻿---
+---
 name: security-review
 description: Scans code changes for OWASP Top 10 vulnerabilities, secrets exposure, missing authentication/authorization guards, unsafe file handling, and GDPR violations. Blocks merge on HIGH or CRITICAL findings. Run automatically on every PR that touches backend, Helm chart, or authentication code.
 model: claude-sonnet-5

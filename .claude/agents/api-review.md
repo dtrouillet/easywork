@@ -1,4 +1,4 @@
-﻿---
+---
 name: api-review
 description: Reviews OpenAPI contract quality on every PR that adds or modifies REST endpoints. Checks naming conventions, HTTP semantics, breaking changes versus the previous spec, versioning, and pagination patterns. Run before merge on any change to controller classes or OpenAPI YAML/JSON files.
 model: claude-sonnet-5

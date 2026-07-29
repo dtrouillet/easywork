@@ -1,4 +1,4 @@
-﻿---
+---
 name: helm-review
 description: Reviews changes to the Helm chart under deploy/helm/easywork/ for Kubernetes best practices — resource limits, health probes, security contexts, NetworkPolicy, PDB, HPA, secrets handling, and image pinning. Run on every PR that touches deploy/. Blocks merge on security or reliability violations.
 model: claude-sonnet-5

@@ -1,4 +1,4 @@
-﻿---
+---
 name: adr
 description: Creates an Architecture Decision Record (ADR) in MADR format under docs/adr/ when a significant technical choice is made. Invoke this agent before opening a PR that introduces a new architectural component, changes a technology choice, or modifies a previously recorded decision.
 model: claude-sonnet-5

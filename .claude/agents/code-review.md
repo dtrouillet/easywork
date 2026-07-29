@@ -1,4 +1,4 @@
-﻿---
+---
 name: code-review
 description: Reviews code changes for correctness, style compliance, dead code, missing tests, and missing OpenAPI annotations. Run on every PR before merge. Also triggered by /code-review ultra for a deep multi-agent cloud review.
 model: claude-sonnet-5

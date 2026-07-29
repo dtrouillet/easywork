@@ -1,4 +1,4 @@
-﻿---
+---
 name: db-review
 description: Reviews Flyway migration scripts for PostgreSQL safety — lock risk, data loss, irreversibility, GDPR impact, and naming conventions. Run on every PR that adds or touches files under src/main/resources/db/migration/. Blocks merge on destructive or lock-prone migrations without a documented rollout strategy.
 model: claude-sonnet-5

@@ -48,6 +48,7 @@ easywork/
 > modules activated by Spring profiles. In production, the same image is deployed
 > as separate pods with different `SPRING_PROFILES_ACTIVE` values.
 
+
 ---
 
 ## Tech stack
