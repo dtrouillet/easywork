@@ -1,5 +1,7 @@
 package fr.easywork.search.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meilisearch.sdk.Client;
 import com.meilisearch.sdk.SearchRequest;
 import fr.easywork.document.event.DocumentReadyEvent;
@@ -19,6 +21,7 @@ public class SearchIndexService {
     private static final String INDEX = "documents";
 
     private final Client client;
+    private final ObjectMapper objectMapper;
 
     public void index(DocumentReadyEvent event) {
         Map<String, Object> doc = Map.of(
@@ -31,7 +34,11 @@ public class SearchIndexService {
             "documentType", event.documentType() != null ? event.documentType() : "",
             "ownerId", event.ownerId()
         );
-        client.index(INDEX).addDocuments(new com.google.gson.Gson().toJson(List.of(doc)), "id");
+        try {
+            client.index(INDEX).addDocuments(objectMapper.writeValueAsString(List.of(doc)), "id");
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize document for indexing", e);
+        }
     }
 
     public void delete(UUID documentId) {

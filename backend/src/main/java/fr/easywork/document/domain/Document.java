@@ -1,9 +1,6 @@
 package fr.easywork.document.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -19,9 +16,6 @@ import java.util.UUID;
 @Audited
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "document")
-@Getter
-@Setter
-@NoArgsConstructor
 public class Document {
 
     @Id
@@ -88,6 +82,8 @@ public class Document {
     private Instant trashedAt;
     private Instant deletedAt;
 
+    public Document() {}
+
     public void transitionTo(DocumentStatus next) {
         if (!status.canTransitionTo(next)) {
             throw new IllegalStateException(
@@ -95,4 +91,67 @@ public class Document {
         }
         this.status = next;
     }
+
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+
+    public String getOriginalFilename() { return originalFilename; }
+    public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
+
+    public String getMimeType() { return mimeType; }
+    public void setMimeType(String mimeType) { this.mimeType = mimeType; }
+
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+    public String getStorageKey() { return storageKey; }
+    public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+
+    public String getContentHash() { return contentHash; }
+    public void setContentHash(String contentHash) { this.contentHash = contentHash; }
+
+    public String getExtractedText() { return extractedText; }
+    public void setExtractedText(String extractedText) { this.extractedText = extractedText; }
+
+    public Integer getPageCount() { return pageCount; }
+    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+
+    public LocalDate getDocumentDate() { return documentDate; }
+    public void setDocumentDate(LocalDate documentDate) { this.documentDate = documentDate; }
+
+    public DocumentStatus getStatus() { return status; }
+    public void setStatus(DocumentStatus status) { this.status = status; }
+
+    public boolean isOcrApplied() { return ocrApplied; }
+    public void setOcrApplied(boolean ocrApplied) { this.ocrApplied = ocrApplied; }
+
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
+
+    public Set<Tag> getTags() { return tags; }
+    public void setTags(Set<Tag> tags) { this.tags = tags; }
+
+    public Correspondent getCorrespondent() { return correspondent; }
+    public void setCorrespondent(Correspondent correspondent) { this.correspondent = correspondent; }
+
+    public DocumentType getDocumentType() { return documentType; }
+    public void setDocumentType(DocumentType documentType) { this.documentType = documentType; }
+
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    public Instant getArchivedAt() { return archivedAt; }
+    public void setArchivedAt(Instant archivedAt) { this.archivedAt = archivedAt; }
+
+    public Instant getTrashedAt() { return trashedAt; }
+    public void setTrashedAt(Instant trashedAt) { this.trashedAt = trashedAt; }
+
+    public Instant getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
 }

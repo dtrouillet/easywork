@@ -24,7 +24,7 @@ public class StorageService {
             minioClient.putObject(PutObjectArgs.builder()
                 .bucket(props.bucket())
                 .object(key)
-                .stream(file.getInputStream(), file.getSize(), -1)
+                .stream(file.getInputStream(), file.getSize(), -1L)
                 .contentType(file.getContentType())
                 .build());
         } catch (Exception e) {

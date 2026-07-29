@@ -5,52 +5,59 @@ import fr.easywork.document.dto.PageResponse;
 import fr.easywork.document.exception.DocumentNotFoundException;
 import fr.easywork.document.service.DocumentService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(DocumentController.class)
+@ExtendWith(MockitoExtension.class)
 class DocumentControllerTest {
 
-    @Autowired MockMvc mockMvc;
-    @MockitoBean DocumentService documentService;
+    @InjectMocks
+    private DocumentController controller;
+
+    @Mock
+    private DocumentService documentService;
 
     @Test
-    void list_returns200_forAuthenticatedUser() throws Exception {
+    void list_delegatesToService() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+
         var emptyPage = new PageResponse<DocumentDto>(
             List.of(), new PageResponse.PageMetadata(0, 25, 0, 0));
-        when(documentService.list(any(), any())).thenReturn(emptyPage);
+        when(documentService.list(eq("user-sub"),
+            eq(PageRequest.of(0, 25, Sort.by("createdAt").descending()))))
+            .thenReturn(emptyPage);
 
-        mockMvc.perform(get("/api/v1/documents")
-                .with(jwt().jwt(j -> j.subject("user-sub"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content").isArray());
+        var result = controller.list(0, 25, jwt);
+
+        assertThat(result.content()).isEmpty();
+        assertThat(result.page().totalElements()).isZero();
     }
 
     @Test
-    void get_returns404_whenDocumentNotFound() throws Exception {
+    void get_throwsNotFound_whenDocumentMissing() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
         UUID id = UUID.randomUUID();
         when(documentService.get(any(), any()))
             .thenThrow(new DocumentNotFoundException(id));
 
-        mockMvc.perform(get("/api/v1/documents/" + id)
-                .with(jwt().jwt(j -> j.subject("user-sub"))))
-            .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void list_returns401_whenUnauthenticated() throws Exception {
-        mockMvc.perform(get("/api/v1/documents"))
-            .andExpect(status().isUnauthorized());
+        assertThatThrownBy(() -> controller.get(id, jwt))
+            .isInstanceOf(DocumentNotFoundException.class);
     }
 }

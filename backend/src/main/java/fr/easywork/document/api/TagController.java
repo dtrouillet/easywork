@@ -4,7 +4,6 @@ import fr.easywork.document.domain.Tag;
 import fr.easywork.document.dto.TagDto;
 import fr.easywork.document.mapper.DocumentMapper;
 import fr.easywork.document.repository.TagRepository;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,7 +15,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/tags")
 @RequiredArgsConstructor
-@Tag(name = "Tags")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Tags")
 class TagController {
 
     private final TagRepository tagRepository;
@@ -30,7 +29,7 @@ class TagController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     TagDto create(@RequestParam @NotBlank String name) {
-        return mapper.toDto(tagRepository.save(new fr.easywork.document.domain.Tag(name)));
+        return mapper.toDto(tagRepository.save(new Tag(name)));
     }
 
     @DeleteMapping("/{id}")

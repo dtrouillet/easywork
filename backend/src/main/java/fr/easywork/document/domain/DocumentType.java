@@ -1,9 +1,6 @@
 package fr.easywork.document.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.envers.Audited;
 
 import java.util.UUID;
@@ -11,9 +8,6 @@ import java.util.UUID;
 @Entity
 @Audited
 @Table(name = "document_type")
-@Getter
-@Setter
-@NoArgsConstructor
 public class DocumentType {
 
     @Id
@@ -26,7 +20,17 @@ public class DocumentType {
     /** Retention in days; null means indefinite. */
     private Integer retentionDays;
 
+    public DocumentType() {}
+
     public DocumentType(String name) {
         this.name = name;
     }
+
+    public UUID getId() { return id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public Integer getRetentionDays() { return retentionDays; }
+    public void setRetentionDays(Integer retentionDays) { this.retentionDays = retentionDays; }
 }

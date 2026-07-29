@@ -1,9 +1,6 @@
 package fr.easywork.document.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.envers.Audited;
 
 import java.util.UUID;
@@ -11,9 +8,6 @@ import java.util.UUID;
 @Entity
 @Audited
 @Table(name = "tag")
-@Getter
-@Setter
-@NoArgsConstructor
 public class Tag {
 
     @Id
@@ -25,7 +19,17 @@ public class Tag {
 
     private String color;
 
+    public Tag() {}
+
     public Tag(String name) {
         this.name = name;
     }
+
+    public UUID getId() { return id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getColor() { return color; }
+    public void setColor(String color) { this.color = color; }
 }

@@ -1,9 +1,6 @@
 package fr.easywork.document.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.envers.Audited;
 
 import java.util.UUID;
@@ -11,9 +8,6 @@ import java.util.UUID;
 @Entity
 @Audited
 @Table(name = "correspondent")
-@Getter
-@Setter
-@NoArgsConstructor
 public class Correspondent {
 
     @Id
@@ -23,7 +17,14 @@ public class Correspondent {
     @Column(nullable = false, unique = true)
     private String name;
 
+    public Correspondent() {}
+
     public Correspondent(String name) {
         this.name = name;
     }
+
+    public UUID getId() { return id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 }
