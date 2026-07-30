@@ -2,7 +2,105 @@
 > A Document Management System (DMS) inspired by paperless-ngx — designed to
 > be as easy to use for a family as it is robust for an SME.
 
-**Status:** 🧪 Exploration / pre-project — specifications and mockups in progress
+**Status:** 🚧 Active development — backend + frontend MVP in progress
+
+---
+
+## Running locally
+
+### Prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| Docker + Docker Compose | 24+ | For infrastructure services |
+| Java | 21 (LTS) | Run `java -version` to check |
+| Maven | 3.9+ | Or use the included `./mvnw` wrapper |
+| Node.js | 20.9+ | Use [nvm](https://github.com/nvm-sh/nvm): `nvm use` (reads `.nvmrc`) |
+
+---
+
+### 1 — Start infrastructure
+
+```bash
+docker compose up -d minio rabbitmq meilisearch keycloak
+```
+
+This starts MinIO (object storage), RabbitMQ (async queue), Meilisearch (search) and Keycloak (auth) without building the backend image. Postgres is also available if you prefer it over the default H2 in-memory database.
+
+Wait for all services to be healthy:
+
+```bash
+docker compose ps
+```
+
+---
+
+### 2 — Configure Keycloak
+
+Open http://localhost:8180 and sign in with `admin` / `admin`.
+
+1. **Create a realm** named `easywork`
+2. **Create a client** inside that realm:
+   - Client ID: `easywork`
+   - Client authentication: ON (confidential)
+   - Valid redirect URIs: `http://localhost:3000/*`
+   - Web origins: `http://localhost:3000`
+   - Copy the client secret from the **Credentials** tab
+3. **Create a test user** with a username and password
+
+---
+
+### 3 — Configure the frontend
+
+Copy the frontend env file and fill in the Keycloak client secret from step 2:
+
+```bash
+cp frontend/.env.example frontend/.env.local
+# Then edit frontend/.env.local:
+#   AUTH_KEYCLOAK_SECRET=<your-client-secret>
+#   NEXTAUTH_SECRET=<any-random-string>
+```
+
+---
+
+### 4 — Start the backend
+
+```bash
+cd backend
+SPRING_PROFILES_ACTIVE=local,ingest,search ./mvnw spring-boot:run
+```
+
+The `local` profile uses H2 (no Postgres needed), connects to RabbitMQ, MinIO and Meilisearch on localhost, and points JWT validation at Keycloak on port 8180. Flyway runs migrations automatically.
+
+Health check: http://localhost:8080/actuator/health → `{"status":"UP"}`  
+Swagger UI: http://localhost:8080/swagger-ui.html
+
+---
+
+### 5 — Start the frontend
+
+```bash
+cd frontend
+nvm use        # switches to Node 20
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 — click **Sign in with SSO** to authenticate via Keycloak.
+
+---
+
+### Service map
+
+| Service | URL | Credentials |
+|---|---|---|
+| Frontend | http://localhost:3000 | via Keycloak |
+| Backend API | http://localhost:8080 | Bearer token |
+| Swagger UI | http://localhost:8080/swagger-ui.html | — |
+| Keycloak admin | http://localhost:8180 | admin / admin |
+| MinIO console | http://localhost:9001 | minioadmin / minioadmin |
+| RabbitMQ mgmt | http://localhost:15672 | guest / guest |
+| Meilisearch | http://localhost:7700 | masterKey |
 
 ---
 
