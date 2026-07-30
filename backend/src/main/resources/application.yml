@@ -53,6 +53,8 @@ logging:
     fr.easywork: INFO
 
 easywork:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   storage:
     endpoint: ${MINIO_ENDPOINT}
     access-key: ${MINIO_ACCESS_KEY}
