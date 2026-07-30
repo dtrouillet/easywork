@@ -74,7 +74,7 @@ public class DocumentService {
         return mapper.toDto(doc);
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     @ApplicationModuleListener
     public void onIngestCompleted(IngestCompletedEvent event) {
         Document doc = documentRepository.findById(event.documentId())

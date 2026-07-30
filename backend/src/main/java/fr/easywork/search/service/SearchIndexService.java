@@ -1,13 +1,12 @@
 package fr.easywork.search.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meilisearch.sdk.Client;
 import com.meilisearch.sdk.SearchRequest;
 import fr.easywork.document.event.DocumentReadyEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,7 @@ public class SearchIndexService {
     private static final String INDEX = "documents";
 
     private final Client client;
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     public void index(DocumentReadyEvent event) {
         Map<String, Object> doc = Map.of(
@@ -34,11 +33,7 @@ public class SearchIndexService {
             "documentType", event.documentType() != null ? event.documentType() : "",
             "ownerId", event.ownerId()
         );
-        try {
-            client.index(INDEX).addDocuments(objectMapper.writeValueAsString(List.of(doc)), "id");
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize document for indexing", e);
-        }
+        client.index(INDEX).addDocuments(jsonMapper.writeValueAsString(List.of(doc)), "id");
     }
 
     public void delete(UUID documentId) {
