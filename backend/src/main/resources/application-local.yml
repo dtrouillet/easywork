@@ -16,8 +16,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # jwk-set-uri avoids eager Keycloak contact at startup (lazy resolution)
-          jwk-set-uri: http://localhost:8180/realms/easywork/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8180/realms/easywork
   rabbitmq:
     host: localhost
     port: 5672
