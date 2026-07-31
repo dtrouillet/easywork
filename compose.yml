@@ -65,6 +65,24 @@ services:
       timeout: 5s
       retries: 5
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/realm-easywork.json:/opt/keycloak/data/import/realm-easywork.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # ── All-in-one (dev): document + ingest + search in single process ──────
   easywork:
     build:
@@ -103,3 +121,4 @@ volumes:
   minio_data:
   rabbitmq_data:
   meilisearch_data:
+  keycloak_data:

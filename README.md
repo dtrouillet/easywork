@@ -35,31 +35,35 @@ docker compose ps
 
 ---
 
-### 2 — Configure Keycloak
+### 2 — Keycloak (auto-configured)
 
-Open http://localhost:8180 and sign in with `admin` / `admin`.
+Keycloak imports the `easywork` realm automatically on first start from
+`keycloak/realm-easywork.json`. No manual setup needed.
 
-1. **Create a realm** named `easywork`
-2. **Create a client** inside that realm:
-   - Client ID: `easywork`
-   - Client authentication: ON (confidential)
-   - Valid redirect URIs: `http://localhost:3000/*`
-   - Web origins: `http://localhost:3000`
-   - Copy the client secret from the **Credentials** tab
-3. **Create a test user** with a username and password
+Pre-configured out of the box:
+- **Realm**: `easywork`
+- **Client**: `easywork` (secret: `easywork-secret`, redirect: `http://localhost:3000/*`)
+- **Test user**: `dev` / `dev`
+
+The Keycloak H2 database is persisted in a Docker volume (`keycloak_data`), so the
+realm survives container restarts. The JSON is only imported once — if the realm
+already exists in the volume, Keycloak skips the import.
+
+To reset Keycloak to a clean state: `docker compose down -v` (removes all volumes).
 
 ---
 
 ### 3 — Configure the frontend
 
-Copy the frontend env file and fill in the Keycloak client secret from step 2:
+Copy the frontend env file — all values are pre-filled for local dev:
 
 ```bash
 cp frontend/.env.example frontend/.env.local
-# Then edit frontend/.env.local:
-#   AUTH_KEYCLOAK_SECRET=<your-client-secret>
-#   NEXTAUTH_SECRET=<any-random-string>
 ```
+
+The default values match the realm JSON (client secret `easywork-secret`).
+Only `NEXTAUTH_SECRET` can be left as-is for local dev; use a strong random
+value in production (`openssl rand -base64 32`).
 
 ---
 
