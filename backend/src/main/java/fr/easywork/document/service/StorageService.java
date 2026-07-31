@@ -1,5 +1,6 @@
 package fr.easywork.document.service;
 
+import fr.easywork.document.DocumentStorage;
 import fr.easywork.document.config.StorageProperties;
 import fr.easywork.document.exception.StorageException;
 import io.minio.*;
@@ -12,7 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class StorageService {
+public class StorageService implements DocumentStorage {
 
     private final MinioClient minioClient;
     private final StorageProperties props;

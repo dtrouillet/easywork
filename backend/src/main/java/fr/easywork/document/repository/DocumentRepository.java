@@ -5,13 +5,14 @@ import fr.easywork.document.domain.DocumentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface DocumentRepository extends JpaRepository<Document, UUID> {
+public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSpecificationExecutor<Document> {
 
     Page<Document> findByOwnerIdAndStatusNot(String ownerId, DocumentStatus status, Pageable pageable);
 
@@ -21,11 +22,24 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     boolean existsByContentHashAndOwnerId(String contentHash, String ownerId);
 
-    @Query("""
-        SELECT d FROM Document d
-        WHERE d.documentType.retentionDays IS NOT NULL
+    boolean existsByTagsId(UUID tagId);
+
+    boolean existsByCorrespondentId(UUID correspondentId);
+
+    boolean existsByDocumentTypeId(UUID documentTypeId);
+
+    /**
+     * Returns READY documents whose retention period has elapsed.
+     * Uses a native query so the per-row comparison (createdAt + retentionDays) is done in SQL,
+     * avoiding a full table scan + Java-side filtering.
+     * Compatible with H2 (MODE=PostgreSQL) and PostgreSQL 16+.
+     */
+    @Query(value = """
+        SELECT d.* FROM document d
+        JOIN document_type dt ON d.document_type_id = dt.id
+        WHERE dt.retention_days IS NOT NULL
           AND d.status = 'READY'
-          AND d.createdAt < :cutoff
-        """)
-    Page<Document> findExpiredDocuments(Instant cutoff, Pageable pageable);
+          AND d.created_at + CAST(dt.retention_days || ' days' AS INTERVAL) < :now
+        """, nativeQuery = true)
+    Page<Document> findExpiredDocuments(Instant now, Pageable pageable);
 }

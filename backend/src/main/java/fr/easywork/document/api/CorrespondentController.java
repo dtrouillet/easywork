@@ -1,9 +1,9 @@
 package fr.easywork.document.api;
 
-import fr.easywork.document.domain.Correspondent;
 import fr.easywork.document.dto.CorrespondentDto;
-import fr.easywork.document.mapper.DocumentMapper;
-import fr.easywork.document.repository.CorrespondentRepository;
+import fr.easywork.document.service.CorrespondentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -19,23 +19,29 @@ import java.util.UUID;
 @Tag(name = "Correspondents")
 class CorrespondentController {
 
-    private final CorrespondentRepository correspondentRepository;
-    private final DocumentMapper mapper;
+    private final CorrespondentService correspondentService;
 
     @GetMapping
+    @Operation(summary = "List all correspondents")
     List<CorrespondentDto> list() {
-        return correspondentRepository.findAll().stream().map(mapper::toDto).toList();
+        return correspondentService.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create a correspondent")
+    @ApiResponse(responseCode = "201", description = "Correspondent created")
+    @ApiResponse(responseCode = "409", description = "Name already exists")
     CorrespondentDto create(@RequestParam @NotBlank String name) {
-        return mapper.toDto(correspondentRepository.save(new Correspondent(name)));
+        return correspondentService.create(name);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a correspondent")
+    @ApiResponse(responseCode = "204", description = "Correspondent deleted")
+    @ApiResponse(responseCode = "409", description = "Correspondent still referenced by documents")
     void delete(@PathVariable UUID id) {
-        correspondentRepository.deleteById(id);
+        correspondentService.delete(id);
     }
 }

@@ -1,15 +1,22 @@
+-- revinfo_seq: used by Hibernate Envers for revision IDs (allocationSize=50 by default)
+CREATE SEQUENCE revinfo_seq START WITH 1 INCREMENT BY 50;
+
 CREATE TABLE revinfo (
-    rev     BIGSERIAL PRIMARY KEY,
+    rev     BIGINT NOT NULL DEFAULT nextval('revinfo_seq') PRIMARY KEY,
     revtstmp BIGINT
 );
 
 CREATE TABLE document_aud (
-    id          UUID NOT NULL,
-    rev         BIGINT NOT NULL REFERENCES revinfo(rev),
-    revtype     SMALLINT,
-    title       VARCHAR(500),
-    status      VARCHAR(20),
-    owner_id    VARCHAR(255),
+    id              UUID NOT NULL,
+    rev             BIGINT NOT NULL REFERENCES revinfo(rev),
+    revtype         SMALLINT,
+    status          VARCHAR(20),
+    ocr_applied     BOOLEAN,
+    created_at      TIMESTAMP WITH TIME ZONE,
+    updated_at      TIMESTAMP WITH TIME ZONE,
+    archived_at     TIMESTAMP WITH TIME ZONE,
+    trashed_at      TIMESTAMP WITH TIME ZONE,
+    deleted_at      TIMESTAMP WITH TIME ZONE,
     PRIMARY KEY (id, rev)
 );
 
@@ -18,6 +25,7 @@ CREATE TABLE tag_aud (
     rev     BIGINT NOT NULL REFERENCES revinfo(rev),
     revtype SMALLINT,
     name    VARCHAR(100),
+    color   VARCHAR(20),
     PRIMARY KEY (id, rev)
 );
 

@@ -1,9 +1,9 @@
 package fr.easywork.document.api;
 
-import fr.easywork.document.domain.DocumentType;
 import fr.easywork.document.dto.DocumentTypeDto;
-import fr.easywork.document.mapper.DocumentMapper;
-import fr.easywork.document.repository.DocumentTypeRepository;
+import fr.easywork.document.service.DocumentTypeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -19,26 +19,31 @@ import java.util.UUID;
 @Tag(name = "Document types")
 class DocumentTypeController {
 
-    private final DocumentTypeRepository documentTypeRepository;
-    private final DocumentMapper mapper;
+    private final DocumentTypeService documentTypeService;
 
     @GetMapping
+    @Operation(summary = "List all document types")
     List<DocumentTypeDto> list() {
-        return documentTypeRepository.findAll().stream().map(mapper::toDto).toList();
+        return documentTypeService.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    DocumentTypeDto create(@RequestParam @NotBlank String name,
-                           @RequestParam(required = false) Integer retentionDays) {
-        DocumentType type = new DocumentType(name);
-        type.setRetentionDays(retentionDays);
-        return mapper.toDto(documentTypeRepository.save(type));
+    @Operation(summary = "Create a document type")
+    @ApiResponse(responseCode = "201", description = "Document type created")
+    @ApiResponse(responseCode = "409", description = "Name already exists")
+    DocumentTypeDto create(
+            @RequestParam @NotBlank String name,
+            @RequestParam(required = false) Integer retentionDays) {
+        return documentTypeService.create(name, retentionDays);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a document type")
+    @ApiResponse(responseCode = "204", description = "Document type deleted")
+    @ApiResponse(responseCode = "409", description = "Document type still referenced by documents")
     void delete(@PathVariable UUID id) {
-        documentTypeRepository.deleteById(id);
+        documentTypeService.delete(id);
     }
 }

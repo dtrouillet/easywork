@@ -1,6 +1,7 @@
 package fr.easywork.document.api;
 
 import fr.easywork.document.dto.DocumentDto;
+import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.PageResponse;
 import fr.easywork.document.exception.DocumentNotFoundException;
 import fr.easywork.document.service.DocumentService;
@@ -9,8 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
@@ -26,24 +25,20 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DocumentControllerTest {
 
-    @InjectMocks
-    private DocumentController controller;
-
-    @Mock
-    private DocumentService documentService;
+    @InjectMocks DocumentController controller;
+    @Mock DocumentService documentService;
 
     @Test
-    void list_delegatesToService() {
+    void list_delegatesToServiceWithCriteria() {
         var jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn("user-sub");
 
         var emptyPage = new PageResponse<DocumentDto>(
             List.of(), new PageResponse.PageMetadata(0, 25, 0, 0));
-        when(documentService.list(eq("user-sub"),
-            eq(PageRequest.of(0, 25, Sort.by("createdAt").descending()))))
+        when(documentService.list(eq("user-sub"), any(DocumentSearchCriteria.class), any()))
             .thenReturn(emptyPage);
 
-        var result = controller.list(0, 25, jwt);
+        var result = controller.list(0, 25, null, null, null, null, null, jwt);
 
         assertThat(result.content()).isEmpty();
         assertThat(result.page().totalElements()).isZero();

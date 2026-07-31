@@ -1,8 +1,8 @@
 package fr.easywork.ingest.pipeline;
 
+import fr.easywork.document.DocumentStorage;
 import fr.easywork.document.event.DocumentUploadedEvent;
 import fr.easywork.document.event.IngestCompletedEvent;
-import fr.easywork.document.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,7 @@ import java.util.HexFormat;
 @RequiredArgsConstructor
 public class IngestPipeline {
 
-    private final StorageService storageService;
+    private final DocumentStorage storageService;
     private final ContentExtractor extractor;
     private final OcrProcessor ocrProcessor;
 
