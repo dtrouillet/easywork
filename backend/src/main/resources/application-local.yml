@@ -16,12 +16,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8080/realms/easywork
+          issuer-uri: http://localhost:8180/realms/easywork
   rabbitmq:
     host: localhost
     port: 5672
 
 easywork:
+  cors:
+    allowed-origins: http://localhost:3000
   storage:
     endpoint: http://localhost:9000
     access-key: minioadmin

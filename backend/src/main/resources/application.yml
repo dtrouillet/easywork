@@ -15,7 +15,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI}
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:}
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST}
     port: ${SPRING_RABBITMQ_PORT:5672}
@@ -53,6 +53,8 @@ logging:
     fr.easywork: INFO
 
 easywork:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   storage:
     endpoint: ${MINIO_ENDPOINT}
     access-key: ${MINIO_ACCESS_KEY}
