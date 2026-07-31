@@ -159,6 +159,11 @@ public class DocumentService {
         doc.setExtractedText(event.extractedText());
         doc.setPageCount(event.pageCount());
         doc.setOcrApplied(event.ocrApplied());
+        // Walk through the lifecycle: RECEIVED → EXTRACTING → (OCR →) CLASSIFYING → READY
+        doc.transitionTo(DocumentStatus.EXTRACTING);
+        if (event.ocrApplied()) {
+            doc.transitionTo(DocumentStatus.OCR);
+        }
         doc.transitionTo(DocumentStatus.CLASSIFYING);
         doc.transitionTo(DocumentStatus.READY);
 
