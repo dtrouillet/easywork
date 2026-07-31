@@ -22,6 +22,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     boolean existsByContentHashAndOwnerId(String contentHash, String ownerId);
 
+    boolean existsByTagsId(UUID tagId);
+
+    boolean existsByCorrespondentId(UUID correspondentId);
+
+    boolean existsByDocumentTypeId(UUID documentTypeId);
+
     @Query("""
         SELECT d FROM Document d
         WHERE d.documentType.retentionDays IS NOT NULL
