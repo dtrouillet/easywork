@@ -28,11 +28,18 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
 
     boolean existsByDocumentTypeId(UUID documentTypeId);
 
-    @Query("""
-        SELECT d FROM Document d
-        WHERE d.documentType.retentionDays IS NOT NULL
+    /**
+     * Returns READY documents whose retention period has elapsed.
+     * Uses a native query so the per-row comparison (createdAt + retentionDays) is done in SQL,
+     * avoiding a full table scan + Java-side filtering.
+     * Compatible with H2 (MODE=PostgreSQL) and PostgreSQL 16+.
+     */
+    @Query(value = """
+        SELECT d.* FROM document d
+        JOIN document_type dt ON d.document_type_id = dt.id
+        WHERE dt.retention_days IS NOT NULL
           AND d.status = 'READY'
-          AND d.createdAt < :cutoff
-        """)
-    Page<Document> findExpiredDocuments(Instant cutoff, Pageable pageable);
+          AND d.created_at + CAST(dt.retention_days || ' days' AS INTERVAL) < :now
+        """, nativeQuery = true)
+    Page<Document> findExpiredDocuments(Instant now, Pageable pageable);
 }
