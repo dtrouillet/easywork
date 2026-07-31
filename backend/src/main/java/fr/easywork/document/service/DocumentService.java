@@ -100,11 +100,13 @@ public class DocumentService {
         }
         if (request.correspondentId() != null) {
             doc.setCorrespondent(correspondentRepository.findById(request.correspondentId())
-                .orElseThrow(() -> new IllegalArgumentException("Correspondent not found: " + request.correspondentId())));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "Correspondent not found: " + request.correspondentId())));
         }
         if (request.documentTypeId() != null) {
             doc.setDocumentType(documentTypeRepository.findById(request.documentTypeId())
-                .orElseThrow(() -> new IllegalArgumentException("DocumentType not found: " + request.documentTypeId())));
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "DocumentType not found: " + request.documentTypeId())));
         }
         if (request.tagIds() != null) {
             doc.setTags(new HashSet<>(tagRepository.findAllById(request.tagIds())));
