@@ -2,6 +2,7 @@ package fr.easywork.document.domain;
 
 import jakarta.persistence.*;
 import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -22,27 +23,37 @@ public class Document {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    // ADR 0001: personal-data fields are @NotAudited — they must never appear in document_aud
+    @NotAudited
     @Column(nullable = false)
     private String title;
 
+    @NotAudited
     @Column(nullable = false)
     private String originalFilename;
 
+    @NotAudited
     @Column(nullable = false)
     private String mimeType;
 
+    @NotAudited
     private Long fileSize;
 
+    @NotAudited
     @Column(unique = true)
     private String storageKey;
 
+    @NotAudited
     private String contentHash;
 
+    @NotAudited
     @Column(columnDefinition = "TEXT")
     private String extractedText;
 
+    @NotAudited
     private Integer pageCount;
 
+    @NotAudited
     private LocalDate documentDate;
 
     @Enumerated(EnumType.STRING)
@@ -51,9 +62,11 @@ public class Document {
 
     private boolean ocrApplied;
 
+    @NotAudited
     @Column(nullable = false)
     private String ownerId;
 
+    @NotAudited
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "document_tag",
@@ -62,10 +75,12 @@ public class Document {
     )
     private Set<Tag> tags = new HashSet<>();
 
+    @NotAudited
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "correspondent_id")
     private Correspondent correspondent;
 
+    @NotAudited
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_type_id")
     private DocumentType documentType;
@@ -90,6 +105,23 @@ public class Document {
                 "Cannot transition document " + id + " from " + status + " to " + next);
         }
         this.status = next;
+    }
+
+    /** ADR 0001: called during permanentDelete to wipe personal data before row deletion. */
+    public void scrubPersonalData() {
+        this.title = "[supprimé]";
+        this.originalFilename = "[supprimé]";
+        this.mimeType = "application/octet-stream";
+        this.fileSize = null;
+        this.storageKey = null;
+        this.contentHash = null;
+        this.extractedText = null;
+        this.pageCount = null;
+        this.documentDate = null;
+        this.ownerId = "[supprimé]";
+        this.tags = new HashSet<>();
+        this.correspondent = null;
+        this.documentType = null;
     }
 
     public UUID getId() { return id; }
