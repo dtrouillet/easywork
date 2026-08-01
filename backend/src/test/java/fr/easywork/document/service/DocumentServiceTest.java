@@ -47,6 +47,7 @@ class DocumentServiceTest {
     @Mock DocumentTypeRepository documentTypeRepository;
     @Mock StorageService storageService;
     @Mock UploadValidator uploadValidator;
+    @Mock DocumentClassifier documentClassifier;
     @Mock DocumentMapper mapper;
     @Mock ApplicationEventPublisher eventPublisher;
 
@@ -105,7 +106,7 @@ class DocumentServiceTest {
         when(documentRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
         when(mapper.toDto(doc)).thenReturn(null);
 
-        var criteria = new DocumentSearchCriteria(null, null, null, null, null);
+        var criteria = new DocumentSearchCriteria(null, null, null, null, null, null);
         var result = documentService.list("user1", criteria, PageRequest.of(0, 25));
 
         assertThat(result.content()).hasSize(1);
@@ -171,6 +172,7 @@ class DocumentServiceTest {
 
         verify(documentRepository).save(argThat(d -> d.getStatus() == DocumentStatus.READY));
         verify(eventPublisher).publishEvent(any(DocumentReadyEvent.class));
+        verify(documentClassifier).classify(doc);
     }
 
     @Test
@@ -197,6 +199,7 @@ class DocumentServiceTest {
 
         verify(storageService).delete("key");
         verify(documentRepository).delete(doc);
+        verify(documentClassifier, never()).classify(any());
     }
 
     // --- lifecycle transitions ---

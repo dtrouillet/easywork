@@ -42,6 +42,23 @@ export interface DocumentDto {
   updatedAt: string;
 }
 
+export interface DocumentUpdateRequest {
+  title?: string;
+  documentDate?: string | null;
+  correspondentId?: string | null;
+  documentTypeId?: string | null;
+  tagIds?: string[];
+}
+
+export interface DocumentSearchParams {
+  status?: DocumentStatus;
+  tagId?: string;
+  correspondentId?: string;
+  documentTypeId?: string;
+  year?: number;
+  q?: string;
+}
+
 export interface PageMetadata {
   number: number;
   size: number;

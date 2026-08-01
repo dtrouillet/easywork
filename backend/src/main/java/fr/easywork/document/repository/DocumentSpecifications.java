@@ -7,6 +7,7 @@ import fr.easywork.document.dto.DocumentSearchCriteria;
 import jakarta.persistence.criteria.Join;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -46,6 +47,11 @@ public final class DocumentSpecifications {
                 cb.like(cb.lower(root.get("title")), "%" + fragment.toLowerCase(Locale.ROOT) + "%");
     }
 
+    public static Specification<Document> withDocumentYear(int year) {
+        return (root, query, cb) -> cb.between(root.get("documentDate"),
+                LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31));
+    }
+
     public static Specification<Document> from(String ownerId, DocumentSearchCriteria criteria) {
         Specification<Document> spec = forOwner(ownerId);
 
@@ -66,6 +72,9 @@ public final class DocumentSpecifications {
         }
         if (criteria.titleContains() != null && !criteria.titleContains().isBlank()) {
             spec = spec.and(titleContains(criteria.titleContains()));
+        }
+        if (criteria.documentYear() != null) {
+            spec = spec.and(withDocumentYear(criteria.documentYear()));
         }
 
         return spec;

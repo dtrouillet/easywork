@@ -48,8 +48,10 @@ class DocumentController {
             @Parameter(description = "Filter by correspondent id") @RequestParam(required = false) UUID correspondentId,
             @Parameter(description = "Filter by document type id") @RequestParam(required = false) UUID documentTypeId,
             @Parameter(description = "Search in title") @RequestParam(required = false) String q,
+            @Parameter(description = "Filter by document year") @RequestParam(required = false) Integer year,
             @AuthenticationPrincipal Jwt jwt) {
-        DocumentSearchCriteria criteria = new DocumentSearchCriteria(status, tagId, correspondentId, documentTypeId, q);
+        DocumentSearchCriteria criteria =
+            new DocumentSearchCriteria(status, tagId, correspondentId, documentTypeId, q, year);
         return documentService.list(
             jwt.getSubject(), criteria,
             PageRequest.of(page, size, Sort.by("createdAt").descending()));
