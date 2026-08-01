@@ -37,6 +37,7 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
 
   const [correspondentId, setCorrespondentId] = useState(doc.correspondent?.id ?? "");
   const [documentTypeId, setDocumentTypeId] = useState(doc.documentType?.id ?? "");
+  const [documentDate, setDocumentDate] = useState(doc.documentDate ?? "");
   const [tagIds, setTagIds] = useState<Set<string>>(new Set(doc.tags.map((t) => t.id)));
 
   const [addingCorrespondent, setAddingCorrespondent] = useState(false);
@@ -108,6 +109,7 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
     onSave({
       correspondentId: correspondentId || null,
       documentTypeId: documentTypeId || null,
+      documentDate: documentDate || null,
       tagIds: [...tagIds],
     });
   }
@@ -115,6 +117,19 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
   return (
     <div className="space-y-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div>
+        <label htmlFor="document-date" className="text-xs text-muted-foreground block mb-1">
+          Document date
+        </label>
+        <input
+          id="document-date"
+          type="date"
+          value={documentDate}
+          onChange={(e) => setDocumentDate(e.target.value)}
+          className="w-full text-sm rounded-md border border-border px-2 py-1.5 bg-background"
+        />
+      </div>
 
       <div>
         <label className="text-xs text-muted-foreground block mb-1">Correspondent</label>

@@ -76,6 +76,30 @@ describe("ClassificationEditor", () => {
     );
   });
 
+  it("saves an edited document date", async () => {
+    const user = userEvent.setup();
+    const { onSave } = setup();
+
+    await screen.findByText("EDF");
+    const dateInput = screen.getByLabelText("Document date");
+    await user.type(dateInput, "2026-03-15");
+    await user.click(screen.getByText("Save classification"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ documentDate: "2026-03-15" }));
+  });
+
+  it("clears the document date when emptied", async () => {
+    const user = userEvent.setup();
+    const { onSave } = setup({ documentDate: "2026-03-15" });
+
+    await screen.findByText("EDF");
+    const dateInput = screen.getByLabelText("Document date");
+    await user.clear(dateInput);
+    await user.click(screen.getByText("Save classification"));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ documentDate: null }));
+  });
+
   it("toggles tags and includes them on save", async () => {
     const user = userEvent.setup();
     const { onSave } = setup();

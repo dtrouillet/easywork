@@ -183,7 +183,6 @@ export default function DocumentDetailPage() {
           { label: "Status", value: doc.status },
           { label: "Created", value: formatDate(doc.createdAt) },
           { label: "Updated", value: formatDate(doc.updatedAt) },
-          { label: "Document date", value: formatDate(doc.documentDate) },
           { label: "Location", value: formatLocation(doc) },
         ].map(({ label, value }) => (
           <div key={label} className="flex items-center px-4 py-3 gap-4">
