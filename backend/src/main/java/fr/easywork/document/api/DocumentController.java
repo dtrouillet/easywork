@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @RestController
@@ -65,6 +67,8 @@ class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Upload a new document")
     @ApiResponse(responseCode = "201", description = "Document created")
+    @ApiResponse(responseCode = "413", description = "File exceeds the maximum allowed size")
+    @ApiResponse(responseCode = "415", description = "Unsupported file type")
     DocumentDto upload(@RequestParam("file") MultipartFile file,
                        @AuthenticationPrincipal Jwt jwt) {
         return documentService.upload(file, jwt.getSubject());
@@ -88,10 +92,12 @@ class DocumentController {
                                                  @AuthenticationPrincipal Jwt jwt) {
         DocumentDto doc = documentService.get(id, jwt.getSubject());
         InputStream stream = documentService.download(id, jwt.getSubject());
+        ContentDisposition disposition = ContentDisposition.attachment()
+            .filename(doc.originalFilename(), StandardCharsets.UTF_8)
+            .build();
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(doc.mimeType()))
-            .header(HttpHeaders.CONTENT_DISPOSITION,
-                    "attachment; filename=\"" + doc.originalFilename() + "\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
             .body(new InputStreamResource(stream));
     }
 

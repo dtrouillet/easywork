@@ -6,9 +6,11 @@ import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.DocumentUpdateRequest;
 import fr.easywork.document.event.DocumentDeletedEvent;
 import fr.easywork.document.event.DocumentReadyEvent;
+import fr.easywork.document.event.DocumentUploadedEvent;
 import fr.easywork.document.event.IngestCompletedEvent;
 import fr.easywork.document.exception.DocumentNotFoundException;
 import fr.easywork.document.exception.DuplicateDocumentException;
+import fr.easywork.document.exception.EmptyFileException;
 import fr.easywork.document.mapper.DocumentMapper;
 import fr.easywork.document.repository.CorrespondentRepository;
 import fr.easywork.document.repository.DocumentRepository;
@@ -24,7 +26,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.mock.web.MockMultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,10 +46,55 @@ class DocumentServiceTest {
     @Mock CorrespondentRepository correspondentRepository;
     @Mock DocumentTypeRepository documentTypeRepository;
     @Mock StorageService storageService;
+    @Mock UploadValidator uploadValidator;
     @Mock DocumentMapper mapper;
     @Mock ApplicationEventPublisher eventPublisher;
 
     @InjectMocks DocumentService documentService;
+
+    // --- upload ---
+
+    @Test
+    void upload_delegatesToValidatorAndStorage_thenSavesDocumentWithDetectedMimeType() {
+        var file = new MockMultipartFile(
+            "file", "invoice.pdf", "application/octet-stream", "content".getBytes(StandardCharsets.UTF_8));
+        when(uploadValidator.validate(file)).thenReturn("application/pdf");
+        when(storageService.store(any(), any(UUID.class))).thenReturn("key");
+        // Simulates Hibernate assigning the generated id on the first persist, matching
+        // DocumentService.upload()'s save-then-use-generated-id-then-save-again flow.
+        when(documentRepository.save(any())).thenAnswer(inv -> {
+            Document d = inv.getArgument(0);
+            if (d.getId() == null) {
+                d.setId(UUID.randomUUID());
+            }
+            return d;
+        });
+
+        documentService.upload(file, "user1");
+
+        var docCaptor = org.mockito.ArgumentCaptor.forClass(Document.class);
+        verify(documentRepository, times(2)).save(docCaptor.capture());
+        Document savedDoc = docCaptor.getValue();
+        assertThat(savedDoc.getMimeType()).isEqualTo("application/pdf");
+        assertThat(savedDoc.getStorageKey()).isEqualTo("key");
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(DocumentUploadedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().mimeType()).isEqualTo("application/pdf");
+        assertThat(eventCaptor.getValue().storageKey()).isEqualTo("key");
+    }
+
+    @Test
+    void upload_propagatesValidationException_andNeverTouchesStorage() {
+        var file = new MockMultipartFile("file", "empty.pdf", "application/pdf", new byte[0]);
+        when(uploadValidator.validate(file)).thenThrow(new EmptyFileException());
+
+        assertThatThrownBy(() -> documentService.upload(file, "user1"))
+            .isInstanceOf(EmptyFileException.class);
+
+        verify(storageService, never()).store(any(), any());
+        verify(documentRepository, never()).save(any());
+    }
 
     // --- list ---
 

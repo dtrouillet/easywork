@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Loader2,
   ArrowLeft,
+  Download,
   FileText,
   Archive,
   Trash2,
@@ -53,6 +54,18 @@ export default function DocumentDetailPage() {
     },
   });
 
+  const download = useMutation({
+    mutationFn: () => documentsApi(session!.accessToken).downloadFile(id),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc?.originalFilename ?? "document";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -78,6 +91,18 @@ export default function DocumentDetailPage() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => download.mutate()}
+          disabled={download.isPending}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+        >
+          {download.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download
+        </button>
         {doc.status === "READY" && (
           <>
             <button

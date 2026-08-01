@@ -6,6 +6,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 
@@ -56,6 +57,27 @@ class GlobalExceptionHandler {
     @ExceptionHandler(StorageException.class)
     ProblemDetail handleStorage(StorageException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Storage operation failed");
+    }
+
+    @ExceptionHandler(EmptyFileException.class)
+    ProblemDetail handleEmptyFile(EmptyFileException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(FileTooLargeException.class)
+    ProblemDetail handleFileTooLarge(FileTooLargeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage());
+    }
+
+    @ExceptionHandler(UnsupportedMimeTypeException.class)
+    ProblemDetail handleUnsupportedMimeType(UnsupportedMimeTypeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        return ProblemDetail.forStatusAndDetail(
+            HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file exceeds the maximum allowed size");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -26,8 +26,8 @@ spring:
         acknowledge-mode: manual
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 52MB
+      max-file-size: 105MB
+      max-request-size: 110MB
 
 management:
   endpoints:
@@ -60,6 +60,19 @@ easywork:
     access-key: ${MINIO_ACCESS_KEY}
     secret-key: ${MINIO_SECRET_KEY}
     bucket: ${MINIO_BUCKET}
+  upload:
+    max-file-size-bytes: ${UPLOAD_MAX_FILE_SIZE_BYTES:104857600}
+    allowed-mime-types:
+      - application/pdf
+      - image/jpeg
+      - image/png
+      - image/tiff
+      - image/webp
+      - text/plain
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - application/vnd.openxmlformats-officedocument.presentationml.presentation
+      - application/vnd.oasis.opendocument.text
   search:
     host: ${MEILISEARCH_HOST}
     api-key: ${MEILISEARCH_API_KEY}

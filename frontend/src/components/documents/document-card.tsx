@@ -1,16 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import {
-  FileText,
-  FileImage,
-  File,
-  Archive,
-  Trash2,
-  RotateCcw,
-} from "lucide-react";
+import { Archive, Trash2, RotateCcw } from "lucide-react";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import type { DocumentDto } from "@/lib/api/types";
+import { MimeIcon } from "./mime-icon";
 
 const statusColors: Record<string, string> = {
   RECEIVED: "text-yellow-600 bg-yellow-50",
@@ -21,12 +15,6 @@ const statusColors: Record<string, string> = {
   ARCHIVED: "text-gray-600 bg-gray-100",
   TRASH: "text-red-600 bg-red-50",
 };
-
-function MimeIcon({ mime }: { mime: string }) {
-  if (mime.startsWith("image/")) return <FileImage className="h-5 w-5" />;
-  if (mime === "application/pdf") return <FileText className="h-5 w-5" />;
-  return <File className="h-5 w-5" />;
-}
 
 interface DocumentCardProps {
   doc: DocumentDto;

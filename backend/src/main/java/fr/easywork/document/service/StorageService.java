@@ -19,7 +19,7 @@ public class StorageService implements DocumentStorage {
     private final StorageProperties props;
 
     public String store(MultipartFile file, UUID documentId) {
-        String key = documentId + "/" + file.getOriginalFilename();
+        String key = documentId + "/" + FilenameSanitizer.sanitize(file.getOriginalFilename());
         try {
             ensureBucketExists();
             minioClient.putObject(PutObjectArgs.builder()

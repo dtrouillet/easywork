@@ -11,12 +11,15 @@ import fr.easywork.document.dto.DocumentDto;
 import fr.easywork.document.repository.DocumentRepository;
 import fr.easywork.document.repository.TagRepository;
 import fr.easywork.document.service.DocumentService;
+import fr.easywork.document.service.StorageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,8 +38,29 @@ class DocumentIntegrationTest extends AbstractIntegrationTest {
     @Autowired DocumentRepository documentRepository;
     @Autowired TagRepository tagRepository;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired StorageService storageService;
 
     private static final String OWNER = "integration-test-user";
+    private static final byte[] PDF_BYTES =
+        "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF".getBytes(StandardCharsets.US_ASCII);
+
+    @Test
+    @WithMockUser
+    void upload_storesFileInMinio_withSanitizedStorageKey() throws java.io.IOException {
+        var file = new MockMultipartFile(
+            "file", "../../evil.pdf", "application/pdf", PDF_BYTES);
+
+        DocumentDto uploaded = documentService.upload(file, OWNER);
+
+        Document persisted = documentRepository.findById(uploaded.id()).orElseThrow();
+        String storageKey = persisted.getStorageKey();
+
+        assertThat(storageKey).doesNotContain("..");
+        assertThat(storageKey.chars().filter(c -> c == '/').count()).isEqualTo(1);
+
+        byte[] downloaded = storageService.download(storageKey).readAllBytes();
+        assertThat(new String(downloaded, StandardCharsets.US_ASCII)).contains("%PDF-1.4");
+    }
 
     @Test
     @WithMockUser
