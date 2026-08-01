@@ -4,9 +4,10 @@ import net.sourceforge.tess4j.Tesseract;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+
+import javax.imageio.ImageIO;
 
 @Component
 @Profile("ingest")

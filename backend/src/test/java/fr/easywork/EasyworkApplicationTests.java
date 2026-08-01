@@ -13,6 +13,9 @@ class EasyworkApplicationTests {
 		modules.verify();
 	}
 
+	// Generates module docs as a side effect; a failed write throws, so there's
+	// nothing to additionally assert on success.
+	@SuppressWarnings("PMD.UnitTestShouldIncludeAssert")
 	@Test
 	void documentModuleStructure() {
 		new Documenter(modules).writeDocumentation();

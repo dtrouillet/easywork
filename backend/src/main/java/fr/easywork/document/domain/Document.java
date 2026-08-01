@@ -108,6 +108,8 @@ public class Document {
     }
 
     /** ADR 0001: called during permanentDelete to wipe personal data before row deletion. */
+    // Nulling fields is the GDPR erasure mechanism itself, not a code smell, here.
+    @SuppressWarnings("PMD.NullAssignment")
     public void scrubPersonalData() {
         this.title = "[supprimé]";
         this.originalFilename = "[supprimé]";

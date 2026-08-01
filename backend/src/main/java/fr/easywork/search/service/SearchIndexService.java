@@ -17,7 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SearchIndexService {
 
-    private static final String INDEX = "documents";
+    private static final String INDEX_NAME = "documents";
 
     private final Client client;
     private final JsonMapper jsonMapper;
@@ -33,11 +33,11 @@ public class SearchIndexService {
             "documentType", event.documentType() != null ? event.documentType() : "",
             "ownerId", event.ownerId()
         );
-        client.index(INDEX).addDocuments(jsonMapper.writeValueAsString(List.of(doc)), "id");
+        client.index(INDEX_NAME).addDocuments(jsonMapper.writeValueAsString(List.of(doc)), "id");
     }
 
     public void delete(UUID documentId) {
-        client.index(INDEX).deleteDocument(documentId.toString());
+        client.index(INDEX_NAME).deleteDocument(documentId.toString());
     }
 
     public Object search(String query, String ownerId, int page, int size) {
@@ -48,6 +48,6 @@ public class SearchIndexService {
             .hitsPerPage(size)
             .page(page + 1)
             .build();
-        return client.index(INDEX).search(request);
+        return client.index(INDEX_NAME).search(request);
     }
 }

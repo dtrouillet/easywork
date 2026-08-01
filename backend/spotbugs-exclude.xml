@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- MapStruct generates implementation classes at compile time; SpotBugs
+         analyzes compiled bytecode in target/classes, so generated mappers
+         would otherwise be flagged for code we don't hand-write or control. -->
+    <Match>
+        <Class name="~.*MapperImpl" />
+    </Match>
+
+    <!-- EI_EXPOSE_REP/REP2: fires on every constructor-injected Spring singleton
+         bean (MinioClient, Meilisearch Client, other services) and every
+         record/DTO holding a List/Set. Both are the accepted idiom here —
+         CLAUDE.md prefers plain records for DTOs, and defensive-copying every
+         collection field and every injected bean would be pure ceremony with
+         no real safety benefit for container-managed singletons or one-shot
+         API response records. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
+
+</FindBugsFilter>

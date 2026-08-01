@@ -34,6 +34,7 @@ public class StorageService implements DocumentStorage {
         return key;
     }
 
+    @Override
     public InputStream download(String key) {
         try {
             return minioClient.getObject(GetObjectArgs.builder()
@@ -45,6 +46,7 @@ public class StorageService implements DocumentStorage {
         }
     }
 
+    @Override
     public void delete(String key) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()

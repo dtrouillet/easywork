@@ -7,6 +7,7 @@ import fr.easywork.document.dto.DocumentSearchCriteria;
 import jakarta.persistence.criteria.Join;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.util.Locale;
 import java.util.UUID;
 
 public final class DocumentSpecifications {
@@ -42,7 +43,7 @@ public final class DocumentSpecifications {
 
     public static Specification<Document> titleContains(String fragment) {
         return (root, query, cb) ->
-                cb.like(cb.lower(root.get("title")), "%" + fragment.toLowerCase() + "%");
+                cb.like(cb.lower(root.get("title")), "%" + fragment.toLowerCase(Locale.ROOT) + "%");
     }
 
     public static Specification<Document> from(String ownerId, DocumentSearchCriteria criteria) {

@@ -27,6 +27,10 @@
 		<jacoco.minimum.coverage>0.80</jacoco.minimum.coverage>
 		<lombok.version>1.18.46</lombok.version>
 		<testcontainers.version>1.21.4</testcontainers.version>
+		<checkstyle.plugin.version>3.6.0</checkstyle.plugin.version>
+		<spotbugs.plugin.version>4.9.3.0</spotbugs.plugin.version>
+		<pmd.plugin.version>3.28.0</pmd.plugin.version>
+		<dependency-check.version>12.1.3</dependency-check.version>
 	</properties>
 
 	<dependencies>
@@ -307,6 +311,93 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+
+			<!-- Checkstyle — Google Java Style Guide (CLAUDE.md code quality standards) -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>${checkstyle.plugin.version}</version>
+				<configuration>
+					<configLocation>${project.basedir}/checkstyle.xml</configLocation>
+					<sourceDirectories>
+						<sourceDirectory>${project.basedir}/src/main/java</sourceDirectory>
+					</sourceDirectories>
+					<includeTestSourceDirectory>false</includeTestSourceDirectory>
+					<consoleOutput>true</consoleOutput>
+					<failsOnError>true</failsOnError>
+					<failOnViolation>true</failOnViolation>
+				</configuration>
+				<executions>
+					<execution>
+						<id>checkstyle-check</id>
+						<phase>verify</phase>
+						<goals><goal>check</goal></goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- SpotBugs — static bytecode analysis -->
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>${spotbugs.plugin.version}</version>
+				<configuration>
+					<effort>Max</effort>
+					<threshold>Medium</threshold>
+					<failOnError>true</failOnError>
+					<excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+				</configuration>
+				<executions>
+					<execution>
+						<id>spotbugs-check</id>
+						<phase>verify</phase>
+						<goals><goal>check</goal></goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- PMD — static source analysis -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-pmd-plugin</artifactId>
+				<version>${pmd.plugin.version}</version>
+				<configuration>
+					<rulesets>
+						<ruleset>${project.basedir}/pmd-ruleset.xml</ruleset>
+					</rulesets>
+					<includeTests>true</includeTests>
+					<excludeRoots>
+						<excludeRoot>${project.build.directory}/generated-sources/annotations</excludeRoot>
+					</excludeRoots>
+					<failOnViolation>true</failOnViolation>
+					<printFailingErrors>true</printFailingErrors>
+				</configuration>
+				<executions>
+					<execution>
+						<id>pmd-check</id>
+						<phase>verify</phase>
+						<goals><goal>check</goal></goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- OWASP Dependency-Check — CVSS >= 7 blocks merge (CLAUDE.md security standards).
+			     Not bound to any lifecycle phase: NVD scans are slow, invoked explicitly in CI only. -->
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>${dependency-check.version}</version>
+				<configuration>
+					<failBuildOnCVSS>7</failBuildOnCVSS>
+					<formats>
+						<format>HTML</format>
+						<format>JSON</format>
+					</formats>
+					<suppressionFiles>
+						<suppressionFile>owasp-suppressions.xml</suppressionFile>
+					</suppressionFiles>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
