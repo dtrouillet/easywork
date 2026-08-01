@@ -146,6 +146,15 @@
 			<artifactId>tika-parsers-standard-package</artifactId>
 			<version>${tika.version}</version>
 		</dependency>
+		<!-- Pin commons-io above tika-core's own transitive 2.15.1: commons-compress
+		     1.27.x (pulled in by tika-parsers-standard-package for ZIP/OOXML container
+		     detection) requires commons-io >= 2.16 (ChecksumInputStream), otherwise every
+		     Tika.detect() call throws NoClassDefFoundError at runtime. -->
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.18.0</version>
+		</dependency>
 		<dependency>
 			<groupId>net.sourceforge.tess4j</groupId>
 			<artifactId>tess4j</artifactId>

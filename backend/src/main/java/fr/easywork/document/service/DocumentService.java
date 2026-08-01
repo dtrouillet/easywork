@@ -44,6 +44,7 @@ public class DocumentService {
     private final CorrespondentRepository correspondentRepository;
     private final DocumentTypeRepository documentTypeRepository;
     private final StorageService storageService;
+    private final UploadValidator uploadValidator;
     private final DocumentMapper mapper;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -68,22 +69,28 @@ public class DocumentService {
     @Transactional
     @PreAuthorize("isAuthenticated()")
     public DocumentDto upload(MultipartFile file, String ownerId) {
-        UUID docId = UUID.randomUUID();
-        String storageKey = storageService.store(file, docId);
+        String detectedMimeType = uploadValidator.validate(file);
 
         Document doc = new Document();
-        doc.setId(docId);
         doc.setTitle(file.getOriginalFilename());
         doc.setOriginalFilename(file.getOriginalFilename());
-        doc.setMimeType(file.getContentType());
+        doc.setMimeType(detectedMimeType);
         doc.setFileSize(file.getSize());
-        doc.setStorageKey(storageKey);
         doc.setOwnerId(ownerId);
         doc.setStatus(DocumentStatus.RECEIVED);
-
+        // Persist first so Hibernate assigns the generated id — the storage key needs
+        // that id, and it must exist as a real row before storageService.store() is
+        // referenced from it (a manually pre-assigned id on a @GeneratedValue entity
+        // makes Hibernate reject the subsequent save as a detached entity).
         documentRepository.save(doc);
+
+        UUID docId = doc.getId();
+        String storageKey = storageService.store(file, docId);
+        doc.setStorageKey(storageKey);
+        documentRepository.save(doc);
+
         eventPublisher.publishEvent(
-            new DocumentUploadedEvent(docId, storageKey, file.getContentType(), ownerId));
+            new DocumentUploadedEvent(docId, storageKey, detectedMimeType, ownerId));
         return mapper.toDto(doc);
     }
 

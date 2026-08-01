@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, uploadWithProgress } from "./client";
 import type { DocumentDto, PageResponse } from "./types";
 
 export function documentsApi(token: string) {
@@ -15,6 +15,12 @@ export function documentsApi(token: string) {
 
     upload: (file: File) =>
       client.upload<DocumentDto>("/api/v1/documents", file),
+
+    uploadWithProgress: (file: File, onProgress: (percent: number) => void, signal?: AbortSignal) =>
+      uploadWithProgress<DocumentDto>("/api/v1/documents", token, file, onProgress, signal),
+
+    downloadFile: (id: string) =>
+      client.downloadBlob(`/api/v1/documents/${id}/file`),
 
     trash: (id: string) =>
       client.post<void>(`/api/v1/documents/${id}/trash`),

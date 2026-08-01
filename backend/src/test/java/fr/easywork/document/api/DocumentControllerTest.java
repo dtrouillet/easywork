@@ -1,17 +1,21 @@
 package fr.easywork.document.api;
 
+import fr.easywork.document.domain.DocumentStatus;
 import fr.easywork.document.dto.DocumentDto;
 import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.PageResponse;
 import fr.easywork.document.exception.DocumentNotFoundException;
+import fr.easywork.document.exception.UnsupportedMimeTypeException;
 import fr.easywork.document.service.DocumentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +31,37 @@ class DocumentControllerTest {
 
     @InjectMocks DocumentController controller;
     @Mock DocumentService documentService;
+
+    // --- upload ---
+
+    @Test
+    void upload_delegatesToServiceAndReturnsCreatedDto() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+        var file = new MockMultipartFile(
+            "file", "invoice.pdf", "application/pdf", "content".getBytes(StandardCharsets.UTF_8));
+        var expected = new DocumentDto(
+            UUID.randomUUID(), "invoice.pdf", DocumentStatus.RECEIVED, "invoice.pdf",
+            "application/pdf", 7L, null, false, null, List.of(), null, null, null, null);
+        when(documentService.upload(file, "user-sub")).thenReturn(expected);
+
+        var result = controller.upload(file, jwt);
+
+        assertThat(result).isEqualTo(expected);
+    }
+
+    @Test
+    void upload_propagatesServiceException() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+        var file = new MockMultipartFile(
+            "file", "invoice.exe", "application/octet-stream", "content".getBytes(StandardCharsets.UTF_8));
+        when(documentService.upload(file, "user-sub"))
+            .thenThrow(new UnsupportedMimeTypeException("application/x-msdownload"));
+
+        assertThatThrownBy(() -> controller.upload(file, jwt))
+            .isInstanceOf(UnsupportedMimeTypeException.class);
+    }
 
     @Test
     void list_delegatesToServiceWithCriteria() {

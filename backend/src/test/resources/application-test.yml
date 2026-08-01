@@ -23,6 +23,19 @@ easywork:
     access-key: minioadmin
     secret-key: minioadmin
     bucket: easywork-test
+  upload:
+    max-file-size-bytes: 104857600
+    allowed-mime-types:
+      - application/pdf
+      - image/jpeg
+      - image/png
+      - image/tiff
+      - image/webp
+      - text/plain
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - application/vnd.openxmlformats-officedocument.presentationml.presentation
+      - application/vnd.oasis.opendocument.text
   search:
     host: http://localhost:7700
     api-key: masterKey
