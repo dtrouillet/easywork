@@ -20,6 +20,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,7 +145,7 @@ class DocumentIntegrationTest extends AbstractIntegrationTest {
         deleted.setStatus(DocumentStatus.DELETED);
         documentRepository.saveAll(List.of(own, other, deleted));
 
-        var criteria = new DocumentSearchCriteria(null, null, null, null, null);
+        var criteria = new DocumentSearchCriteria(null, null, null, null, null, null);
         PageResponse<DocumentDto> result = documentService.list(
             "filter-owner", criteria, PageRequest.of(0, 25));
 
@@ -162,7 +163,7 @@ class DocumentIntegrationTest extends AbstractIntegrationTest {
         Document untagged = readyDoc("tag-owner", "Contract Notaire");
         documentRepository.saveAll(List.of(tagged, untagged));
 
-        var criteria = new DocumentSearchCriteria(null, tag.getId(), null, null, null);
+        var criteria = new DocumentSearchCriteria(null, tag.getId(), null, null, null, null);
         PageResponse<DocumentDto> result = documentService.list(
             "tag-owner", criteria, PageRequest.of(0, 25));
 
@@ -177,12 +178,29 @@ class DocumentIntegrationTest extends AbstractIntegrationTest {
             readyDoc("search-owner", "Facture EDF 2026"),
             readyDoc("search-owner", "Contrat location")));
 
-        var criteria = new DocumentSearchCriteria(null, null, null, null, "edf");
+        var criteria = new DocumentSearchCriteria(null, null, null, null, "edf", null);
         PageResponse<DocumentDto> result = documentService.list(
             "search-owner", criteria, PageRequest.of(0, 25));
 
         assertThat(result.content()).hasSize(1);
         assertThat(result.content().get(0).title()).isEqualTo("Facture EDF 2026");
+    }
+
+    @Test
+    @WithMockUser
+    void list_filtersByDocumentYear() {
+        Document doc2026 = readyDoc("year-owner", "Facture 2026");
+        doc2026.setDocumentDate(LocalDate.of(2026, 3, 15));
+        Document doc2025 = readyDoc("year-owner", "Facture 2025");
+        doc2025.setDocumentDate(LocalDate.of(2025, 6, 1));
+        documentRepository.saveAll(List.of(doc2026, doc2025));
+
+        var criteria = new DocumentSearchCriteria(null, null, null, null, null, 2026);
+        PageResponse<DocumentDto> result = documentService.list(
+            "year-owner", criteria, PageRequest.of(0, 25));
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).title()).isEqualTo("Facture 2026");
     }
 
     private Document readyDoc(String ownerId, String title) {

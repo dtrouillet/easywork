@@ -13,5 +13,6 @@ public record DocumentSearchCriteria(
         UUID tagId,
         UUID correspondentId,
         UUID documentTypeId,
-        String titleContains
+        String titleContains,
+        Integer documentYear
 ) {}

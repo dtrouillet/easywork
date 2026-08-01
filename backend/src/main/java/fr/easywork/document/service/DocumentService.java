@@ -34,6 +34,11 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.UUID;
 
+// This is the central document lifecycle orchestrator (upload, classify, archive,
+// trash, GDPR erasure); its collaborators are the module's own repositories/services,
+// not an accidental coupling smell — splitting it up is a larger refactor, not a
+// side effect of adding one more classification collaborator.
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -45,6 +50,7 @@ public class DocumentService {
     private final DocumentTypeRepository documentTypeRepository;
     private final StorageService storageService;
     private final UploadValidator uploadValidator;
+    private final DocumentClassifier documentClassifier;
     private final DocumentMapper mapper;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -174,6 +180,7 @@ public class DocumentService {
             doc.transitionTo(DocumentStatus.OCR);
         }
         doc.transitionTo(DocumentStatus.CLASSIFYING);
+        documentClassifier.classify(doc);
         doc.transitionTo(DocumentStatus.READY);
 
         documentRepository.save(doc);

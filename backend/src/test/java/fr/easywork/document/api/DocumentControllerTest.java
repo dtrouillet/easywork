@@ -73,7 +73,7 @@ class DocumentControllerTest {
         when(documentService.list(eq("user-sub"), any(DocumentSearchCriteria.class), any()))
             .thenReturn(emptyPage);
 
-        var result = controller.list(0, 25, null, null, null, null, null, jwt);
+        var result = controller.list(0, 25, null, null, null, null, null, null, jwt);
 
         assertThat(result.content()).isEmpty();
         assertThat(result.page().totalElements()).isZero();

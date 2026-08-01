@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
 import { formatBytes, formatDate } from "@/lib/utils";
+import { formatLocation } from "@/lib/document-tree";
+import { ClassificationEditor } from "@/components/documents/classification-editor";
+import type { DocumentUpdateRequest } from "@/lib/api/types";
 
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +66,15 @@ export default function DocumentDetailPage() {
       a.download = doc?.originalFilename ?? "document";
       a.click();
       URL.revokeObjectURL(url);
+    },
+  });
+
+  const classify = useMutation({
+    mutationFn: (request: DocumentUpdateRequest) =>
+      documentsApi(session!.accessToken).update(id, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document", id] });
     },
   });
 
@@ -172,31 +184,24 @@ export default function DocumentDetailPage() {
           { label: "Created", value: formatDate(doc.createdAt) },
           { label: "Updated", value: formatDate(doc.updatedAt) },
           { label: "Document date", value: formatDate(doc.documentDate) },
-          { label: "Correspondent", value: doc.correspondent?.name ?? "—" },
-          { label: "Type", value: doc.documentType?.name ?? "—" },
+          { label: "Location", value: formatLocation(doc) },
         ].map(({ label, value }) => (
           <div key={label} className="flex items-center px-4 py-3 gap-4">
             <span className="text-sm text-muted-foreground w-36 shrink-0">{label}</span>
-            <span className="text-sm font-[family-name:var(--font-mono)]">{value}</span>
+            <span className="text-sm font-[family-name:var(--font-mono)] truncate">{value}</span>
           </div>
         ))}
+      </div>
 
-        {doc.tags.length > 0 && (
-          <div className="flex items-start px-4 py-3 gap-4">
-            <span className="text-sm text-muted-foreground w-36 shrink-0 pt-0.5">Tags</span>
-            <div className="flex flex-wrap gap-1">
-              {doc.tags.map((t) => (
-                <span
-                  key={t.id}
-                  className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-muted text-muted-foreground"
-                  style={t.color ? { backgroundColor: t.color + "22", color: t.color } : undefined}
-                >
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+      <div className="rounded-lg border border-border p-4">
+        <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">
+          Classification
+        </p>
+        <ClassificationEditor
+          doc={doc}
+          saving={classify.isPending}
+          onSave={(request) => classify.mutate(request)}
+        />
       </div>
     </div>
   );
