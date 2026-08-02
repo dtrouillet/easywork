@@ -18,13 +18,6 @@ class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    @ExceptionHandler(DuplicateDocumentException.class)
-    ProblemDetail handleDuplicate(DuplicateDocumentException ex) {
-        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setTitle("Duplicate document");
-        return problem;
-    }
-
     @ExceptionHandler(DuplicateNameException.class)
     ProblemDetail handleDuplicateName(DuplicateNameException ex) {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

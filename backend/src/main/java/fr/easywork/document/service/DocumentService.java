@@ -12,7 +12,6 @@ import fr.easywork.document.event.DocumentReadyEvent;
 import fr.easywork.document.event.DocumentUploadedEvent;
 import fr.easywork.document.event.IngestCompletedEvent;
 import fr.easywork.document.exception.DocumentNotFoundException;
-import fr.easywork.document.exception.DuplicateDocumentException;
 import fr.easywork.document.mapper.DocumentMapper;
 import fr.easywork.document.repository.CorrespondentRepository;
 import fr.easywork.document.repository.DocumentRepository;
@@ -172,14 +171,18 @@ public class DocumentService implements DocumentDuplicateCheck {
             return;
         }
 
-        // Duplicate detection
-        documentRepository.findByContentHashAndOwnerId(event.contentHash(), doc.getOwnerId())
+        // Duplicate detection. This runs inside an async event listener — there's no
+        // HTTP caller left to hand a 409 to, so the duplicate is deleted outright
+        // instead of throwing (an exception here has nowhere to go but the log, and
+        // leaves this listener's event_publication permanently incomplete).
+        boolean isDuplicate = documentRepository.findByContentHashAndOwnerId(event.contentHash(), doc.getOwnerId())
             .filter(existing -> !existing.getId().equals(doc.getId()))
-            .ifPresent(existing -> {
-                storageService.delete(doc.getStorageKey());
-                documentRepository.delete(doc);
-                throw new DuplicateDocumentException(existing.getId());
-            });
+            .isPresent();
+        if (isDuplicate) {
+            storageService.delete(doc.getStorageKey());
+            documentRepository.delete(doc);
+            return;
+        }
 
         doc.setContentHash(event.contentHash());
         doc.setExtractedText(event.extractedText());
