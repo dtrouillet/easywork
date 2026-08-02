@@ -90,11 +90,22 @@ services:
       dockerfile: Dockerfile
       target: runtime-ocr
     environment:
-      SPRING_PROFILES_ACTIVE: local,ingest,search
+      # Not "local": that profile hardcodes an H2 driver/URL for host-based dev
+      # without Docker, which conflicts with the real Postgres wired up below
+      # (Flyway fails with "Driver org.h2.Driver claims to not accept jdbcUrl,
+      # jdbc:postgresql://...") — every setting local provides is externalized
+      # here instead, so document/ingest/search behave the same as production.
+      SPRING_PROFILES_ACTIVE: ingest,search
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/easywork
       SPRING_DATASOURCE_USERNAME: easywork
       SPRING_DATASOURCE_PASSWORD: easywork
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8080/realms/easywork
+      # Must match what's baked into the JWT's `iss` claim — the browser (and
+      # NextAuth) reach Keycloak via localhost, so tokens carry that issuer.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8180/realms/easywork
+      # ...but this container can't reach "localhost:8180" (that's itself) to
+      # fetch signing keys — use the Docker network service name instead.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/easywork/protocol/openid-connect/certs
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
       SPRING_RABBITMQ_HOST: rabbitmq
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
