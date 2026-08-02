@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +28,14 @@ public interface DocumentRepository extends JpaRepository<Document, UUID>, JpaSp
     boolean existsByCorrespondentId(UUID correspondentId);
 
     boolean existsByDocumentTypeId(UUID documentTypeId);
+
+    // Used by Tag/Correspondent/DocumentType merge to find documents to reassign
+    // before deleting the merged-away entity.
+    List<Document> findAllByTagsId(UUID tagId);
+
+    List<Document> findAllByCorrespondentId(UUID correspondentId);
+
+    List<Document> findAllByDocumentTypeId(UUID documentTypeId);
 
     /**
      * Returns READY documents whose retention period has elapsed.

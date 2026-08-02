@@ -9,9 +9,9 @@ import { correspondentsApi } from "@/lib/api/correspondents";
 import { documentTypesApi } from "@/lib/api/document-types";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { TAG_COLORS } from "@/lib/tag-colors";
 import type { DocumentDto, DocumentUpdateRequest } from "@/lib/api/types";
 
-const TAG_COLORS = ["#2F6F5E", "#C98A2C", "#5B6EAE", "#A34B4B", "#6B7280", "#0EA5E9"];
 const NEW_OPTION = "__new__";
 
 interface ClassificationEditorProps {
