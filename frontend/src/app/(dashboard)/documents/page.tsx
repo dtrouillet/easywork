@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Loader2, FileX } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
 import { DocumentCard } from "@/components/documents/document-card";
-import { UploadDialog } from "@/components/documents/upload-dialog";
 import { BrowsePanel, type BrowseView } from "@/components/documents/browse-panel";
 import { filterDocsByPath } from "@/lib/document-tree";
 
@@ -74,8 +73,6 @@ export default function DocumentsPage() {
 
   return (
     <>
-      <UploadDialog />
-
       <div className="flex gap-6">
         <BrowsePanel
           view={view}

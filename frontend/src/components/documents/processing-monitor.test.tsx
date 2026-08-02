@@ -37,6 +37,7 @@ const FIXTURE_DOCS: DocumentDto[] = [
   makeDoc({ id: "doc-received", title: "Received doc", status: "RECEIVED" }),
   makeDoc({ id: "doc-failed-1", title: "Failed doc 1", status: "FAILED", lastIngestError: "OCR crashed" }),
   makeDoc({ id: "doc-failed-2", title: "Failed doc 2", status: "FAILED", lastIngestError: "Timeout" }),
+  makeDoc({ id: "doc-ready-1", title: "Old invoice", status: "READY", ocrApplied: true, pageCount: 2 }),
 ];
 
 const retryMock = vi.fn().mockResolvedValue(undefined);
@@ -119,7 +120,25 @@ describe("ProcessingMonitor", () => {
     FIXTURE_DOCS.push(
       makeDoc({ id: "doc-received", title: "Received doc", status: "RECEIVED" }),
       makeDoc({ id: "doc-failed-1", title: "Failed doc 1", status: "FAILED", lastIngestError: "OCR crashed" }),
-      makeDoc({ id: "doc-failed-2", title: "Failed doc 2", status: "FAILED", lastIngestError: "Timeout" })
+      makeDoc({ id: "doc-failed-2", title: "Failed doc 2", status: "FAILED", lastIngestError: "Timeout" }),
+      makeDoc({ id: "doc-ready-1", title: "Old invoice", status: "READY", ocrApplied: true, pageCount: 2 })
     );
+  });
+
+  it("shows already-processed documents in the history section", async () => {
+    renderWithProviders(<ProcessingMonitor />);
+
+    expect(await screen.findByText("Old invoice")).toBeInTheDocument();
+    expect(screen.getByText("READY")).toBeInTheDocument();
+    expect(screen.getByText("2p · OCR")).toBeInTheDocument();
+  });
+
+  it("shows an empty history state when nothing has been processed yet", async () => {
+    const readyDoc = FIXTURE_DOCS.pop();
+    renderWithProviders(<ProcessingMonitor />);
+
+    expect(await screen.findByText("Nothing has been processed yet.")).toBeInTheDocument();
+
+    if (readyDoc) FIXTURE_DOCS.push(readyDoc);
   });
 });
