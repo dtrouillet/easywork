@@ -152,6 +152,38 @@ class DocumentServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    // --- reclassify ---
+
+    @Test
+    void reclassify_runsClassifierAndPublishesReindexEvent_whenReady() {
+        UUID id = UUID.randomUUID();
+        Document doc = readyDocument(id, "user1");
+        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
+        when(documentRepository.save(any())).thenReturn(doc);
+
+        documentService.reclassify(id, "user1");
+
+        verify(documentClassifier).classify(doc);
+        verify(documentRepository).save(doc);
+        verify(eventPublisher).publishEvent(any(DocumentReadyEvent.class));
+    }
+
+    @Test
+    void reclassify_doesNotPublishEvent_whenNotReadyOrArchived() {
+        UUID id = UUID.randomUUID();
+        Document doc = new Document();
+        doc.setId(id);
+        doc.setOwnerId("user1");
+        doc.setStatus(DocumentStatus.RECEIVED);
+        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
+        when(documentRepository.save(any())).thenReturn(doc);
+
+        documentService.reclassify(id, "user1");
+
+        verify(documentClassifier).classify(doc);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
     // --- onIngestCompleted ---
 
     @Test

@@ -16,7 +16,9 @@ describe("formatDate", () => {
     expect(formatDate(null)).toBe("—");
   });
 
-  it("formats an ISO date as day/month/year", () => {
-    expect(formatDate("2026-03-05T12:00:00.000Z")).toBe("05 Mar 2026");
+  it("formats an ISO date as day/month/year, time", () => {
+    // Time renders in the runner's local timezone, so only assert the shape —
+    // not an exact hour, which would make this test timezone-dependent.
+    expect(formatDate("2026-03-05T12:00:00.000Z")).toMatch(/^05 Mar 2026, \d{2}:\d{2}$/);
   });
 });
