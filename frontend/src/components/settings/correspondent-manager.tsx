@@ -14,14 +14,14 @@ function duplicateOrGenericError(e: unknown, label: string): string {
 
 export function CorrespondentManager() {
   const { data: session } = useSession();
-  const token = session!.accessToken;
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
   const { data: correspondents, isLoading } = useQuery({
     queryKey: ["correspondents"],
-    queryFn: () => correspondentsApi(token).list(),
+    queryFn: () => correspondentsApi(session!.accessToken).list(),
+    enabled: !!session,
   });
 
   function invalidate() {
@@ -30,7 +30,7 @@ export function CorrespondentManager() {
   }
 
   const create = useMutation({
-    mutationFn: () => correspondentsApi(token).create(newName.trim()),
+    mutationFn: () => correspondentsApi(session!.accessToken).create(newName.trim()),
     onSuccess: () => {
       setNewName("");
       setError(null);
@@ -40,7 +40,8 @@ export function CorrespondentManager() {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => correspondentsApi(token).update(id, name),
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      correspondentsApi(session!.accessToken).update(id, name),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -49,13 +50,13 @@ export function CorrespondentManager() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => correspondentsApi(token).delete(id),
+    mutationFn: (id: string) => correspondentsApi(session!.accessToken).delete(id),
     onSuccess: invalidate,
   });
 
   const merge = useMutation({
     mutationFn: ({ sourceId, targetId }: { sourceId: string; targetId: string }) =>
-      correspondentsApi(token).merge(sourceId, targetId),
+      correspondentsApi(session!.accessToken).merge(sourceId, targetId),
     onSuccess: invalidate,
   });
 

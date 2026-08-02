@@ -20,7 +20,6 @@ function parseRetentionDays(value: string): number | undefined {
 
 export function DocumentTypeManager() {
   const { data: session } = useSession();
-  const token = session!.accessToken;
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -28,7 +27,8 @@ export function DocumentTypeManager() {
 
   const { data: types, isLoading } = useQuery({
     queryKey: ["document-types"],
-    queryFn: () => documentTypesApi(token).list(),
+    queryFn: () => documentTypesApi(session!.accessToken).list(),
+    enabled: !!session,
   });
 
   function invalidate() {
@@ -37,7 +37,8 @@ export function DocumentTypeManager() {
   }
 
   const create = useMutation({
-    mutationFn: () => documentTypesApi(token).create(newName.trim(), parseRetentionDays(newRetentionDays)),
+    mutationFn: () =>
+      documentTypesApi(session!.accessToken).create(newName.trim(), parseRetentionDays(newRetentionDays)),
     onSuccess: () => {
       setNewName("");
       setNewRetentionDays("");
@@ -49,7 +50,7 @@ export function DocumentTypeManager() {
 
   const update = useMutation({
     mutationFn: ({ id, name, retentionDays }: { id: string; name: string; retentionDays?: number }) =>
-      documentTypesApi(token).update(id, name, retentionDays),
+      documentTypesApi(session!.accessToken).update(id, name, retentionDays),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -58,13 +59,13 @@ export function DocumentTypeManager() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => documentTypesApi(token).delete(id),
+    mutationFn: (id: string) => documentTypesApi(session!.accessToken).delete(id),
     onSuccess: invalidate,
   });
 
   const merge = useMutation({
     mutationFn: ({ sourceId, targetId }: { sourceId: string; targetId: string }) =>
-      documentTypesApi(token).merge(sourceId, targetId),
+      documentTypesApi(session!.accessToken).merge(sourceId, targetId),
     onSuccess: invalidate,
   });
 

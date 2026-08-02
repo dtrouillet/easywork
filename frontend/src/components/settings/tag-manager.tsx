@@ -16,13 +16,16 @@ function duplicateOrGenericError(e: unknown, label: string): string {
 
 export function TagManager() {
   const { data: session } = useSession();
-  const token = session!.accessToken;
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState<string | null>(null);
 
-  const { data: tags, isLoading } = useQuery({ queryKey: ["tags"], queryFn: () => tagsApi(token).list() });
+  const { data: tags, isLoading } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => tagsApi(session!.accessToken).list(),
+    enabled: !!session,
+  });
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["tags"] });
@@ -30,7 +33,7 @@ export function TagManager() {
   }
 
   const create = useMutation({
-    mutationFn: () => tagsApi(token).create(newName.trim(), newColor ?? undefined),
+    mutationFn: () => tagsApi(session!.accessToken).create(newName.trim(), newColor ?? undefined),
     onSuccess: () => {
       setNewName("");
       setNewColor(null);
@@ -42,7 +45,7 @@ export function TagManager() {
 
   const update = useMutation({
     mutationFn: ({ id, name, color }: { id: string; name: string; color: string | null }) =>
-      tagsApi(token).update(id, name, color ?? undefined),
+      tagsApi(session!.accessToken).update(id, name, color ?? undefined),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -51,13 +54,13 @@ export function TagManager() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => tagsApi(token).delete(id),
+    mutationFn: (id: string) => tagsApi(session!.accessToken).delete(id),
     onSuccess: invalidate,
   });
 
   const merge = useMutation({
     mutationFn: ({ sourceId, targetId }: { sourceId: string; targetId: string }) =>
-      tagsApi(token).merge(sourceId, targetId),
+      tagsApi(session!.accessToken).merge(sourceId, targetId),
     onSuccess: invalidate,
   });
 
