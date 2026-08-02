@@ -10,11 +10,11 @@ const MAX_CONCURRENT_UPLOADS = 3;
 
 function friendlyErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 413) return "Fichier trop volumineux";
-    if (error.status === 415) return "Type de fichier non supporté";
-    if (error.status === 401 || error.status === 403) return "Accès refusé";
+    if (error.status === 413) return "File too large";
+    if (error.status === 415) return "Unsupported file type";
+    if (error.status === 401 || error.status === 403) return "Access denied";
   }
-  return "Échec du téléversement";
+  return "Upload failed";
 }
 
 export function useDocumentUpload() {
@@ -40,7 +40,7 @@ export function useDocumentUpload() {
       )
       .then(() => {
         updateUploadItem(item.id, { status: "done", progress: 100 });
-        toast.success(`${item.file.name} téléversé`);
+        toast.success(`${item.file.name} uploaded`);
       })
       .catch((error: unknown) => {
         updateUploadItem(item.id, { status: "error", error: friendlyErrorMessage(error) });

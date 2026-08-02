@@ -7,25 +7,26 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { SessionProvider, signOut, useSession } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { fullSignOut } from "@/lib/sign-out";
 
 function handleApiError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      toast.error("Session expirée, reconnexion en cours…");
-      signOut({ callbackUrl: "/login" });
+      toast.error("Session expired, signing out…");
+      fullSignOut();
       return;
     }
     if (error.status === 403) {
-      toast.error("Accès refusé.");
+      toast.error("Access denied.");
       return;
     }
   }
   toast.error(
-    error instanceof Error ? error.message : "Une erreur inattendue est survenue."
+    error instanceof Error ? error.message : "An unexpected error occurred."
   );
 }
 
@@ -34,8 +35,8 @@ function SessionWatcher() {
 
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
-      toast.error("Votre session a expiré, veuillez vous reconnecter.");
-      signOut({ callbackUrl: "/login" });
+      toast.error("Your session has expired, please sign in again.");
+      fullSignOut();
     }
   }, [session?.error]);
 

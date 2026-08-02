@@ -43,13 +43,13 @@ describe("UploadQueueItem", () => {
     );
 
     expect(screen.getByText("Fichier trop volumineux")).toBeInTheDocument();
-    expect(screen.getByTitle("Réessayer")).toBeInTheDocument();
+    expect(screen.getByTitle("Retry")).toBeInTheDocument();
   });
 
   it("does not render a retry button for a pending item", () => {
     render(<UploadQueueItem item={makeItem()} onRemove={vi.fn()} onRetry={vi.fn()} />);
 
-    expect(screen.queryByTitle("Réessayer")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Retry")).not.toBeInTheDocument();
   });
 
   it("calls onRemove when the remove button is clicked", async () => {
@@ -57,7 +57,7 @@ describe("UploadQueueItem", () => {
     const onRemove = vi.fn();
     render(<UploadQueueItem item={makeItem({ id: "42" })} onRemove={onRemove} onRetry={vi.fn()} />);
 
-    await user.click(screen.getByTitle("Retirer"));
+    await user.click(screen.getByTitle("Remove"));
 
     expect(onRemove).toHaveBeenCalledWith("42");
   });
@@ -73,7 +73,7 @@ describe("UploadQueueItem", () => {
       />
     );
 
-    await user.click(screen.getByTitle("Réessayer"));
+    await user.click(screen.getByTitle("Retry"));
 
     expect(onRetry).toHaveBeenCalledWith("42");
   });

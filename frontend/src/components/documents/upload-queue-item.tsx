@@ -56,7 +56,7 @@ export function UploadQueueItem({ item, onRemove, onRetry }: UploadQueueItemProp
           <button
             onClick={() => onRetry(item.id)}
             className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-            title="Réessayer"
+            title="Retry"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -64,7 +64,7 @@ export function UploadQueueItem({ item, onRemove, onRetry }: UploadQueueItemProp
         <button
           onClick={() => onRemove(item.id)}
           className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-          title="Retirer"
+          title="Remove"
         >
           <X className="h-4 w-4" />
         </button>

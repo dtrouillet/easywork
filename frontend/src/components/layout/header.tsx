@@ -1,8 +1,8 @@
 "use client";
 
-import { signOut } from "next-auth/react";
 import { Upload, LogOut, User } from "lucide-react";
 import { useUiStore } from "@/store/ui-store";
+import { fullSignOut } from "@/lib/sign-out";
 
 interface HeaderProps {
   userName?: string | null;
@@ -32,7 +32,7 @@ export function Header({ userName }: HeaderProps) {
         </div>
 
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => fullSignOut()}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           title="Sign out"
         >

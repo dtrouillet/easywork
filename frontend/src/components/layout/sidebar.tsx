@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Tag, Users, Settings, Archive, Trash2 } from "lucide-react";
+import { FileText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/documents?status=ARCHIVED", label: "Archive", icon: Archive },
-  { href: "/documents?status=TRASH", label: "Trash", icon: Trash2 },
-  { href: "/tags", label: "Tags", icon: Tag },
-  { href: "/correspondents", label: "Correspondents", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -26,7 +22,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 p-2 space-y-0.5">
         {nav.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href.split("?")[0];
+          const active = pathname === href;
           return (
             <Link
               key={href}
