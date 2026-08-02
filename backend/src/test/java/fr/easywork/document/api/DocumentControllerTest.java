@@ -43,7 +43,7 @@ class DocumentControllerTest {
             "file", "invoice.pdf", "application/pdf", "content".getBytes(StandardCharsets.UTF_8));
         var expected = new DocumentDto(
             UUID.randomUUID(), "invoice.pdf", DocumentStatus.RECEIVED, "invoice.pdf",
-            "application/pdf", 7L, null, false, null, null, List.of(), null, null, null, null);
+            "application/pdf", 7L, null, false, null, null, null, List.of(), null, null, null, null);
         when(documentService.upload(file, "user-sub")).thenReturn(expected);
 
         var result = controller.upload(file, jwt);

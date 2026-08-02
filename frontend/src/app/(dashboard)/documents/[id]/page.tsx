@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
@@ -13,6 +14,8 @@ import {
   RotateCcw,
   Trash,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
 import { formatBytes, formatDate } from "@/lib/utils";
@@ -26,6 +29,7 @@ export default function DocumentDetailPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [showExtractedText, setShowExtractedText] = useState(false);
 
   const { data: doc, isLoading } = useQuery({
     queryKey: ["document", id],
@@ -249,6 +253,29 @@ export default function DocumentDetailPage() {
               onSave={(request) => classify.mutate(request)}
             />
           </div>
+
+          {doc.extractedText && (
+            <div className="rounded-lg border border-border">
+              <button
+                onClick={() => setShowExtractedText((prev) => !prev)}
+                className="flex w-full items-center gap-1.5 p-4 text-left"
+              >
+                {showExtractedText ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                )}
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Extracted text
+                </span>
+              </button>
+              {showExtractedText && (
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words border-t border-border p-4 text-xs font-[family-name:var(--font-mono)] text-muted-foreground">
+                  {doc.extractedText}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
