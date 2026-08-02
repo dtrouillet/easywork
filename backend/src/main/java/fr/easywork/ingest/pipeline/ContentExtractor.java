@@ -24,7 +24,19 @@ class ContentExtractor {
         String text = handler.toString().trim();
         String mimeType = metadata.get("Content-Type");
         boolean requiresOcr = text.length() < NATIVE_TEXT_THRESHOLD;
+        Integer pageCount = parsePageCount(metadata.get("xmpTPg:NPages"));
 
-        return new ExtractionResult(text, mimeType, requiresOcr);
+        return new ExtractionResult(text, mimeType, requiresOcr, pageCount);
+    }
+
+    private static Integer parsePageCount(String rawPageCount) {
+        if (rawPageCount == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(rawPageCount);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

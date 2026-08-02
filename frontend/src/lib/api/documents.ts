@@ -40,6 +40,9 @@ export function documentsApi(token: string) {
     restore: (id: string) =>
       client.post<void>(`/api/v1/documents/${id}/restore`),
 
+    retry: (id: string) =>
+      client.post<void>(`/api/v1/documents/${id}/retry`),
+
     delete: (id: string) =>
       client.delete<void>(`/api/v1/documents/${id}`),
   };

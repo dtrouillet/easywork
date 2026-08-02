@@ -16,6 +16,12 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:}
+          # Only needed when the browser-facing Keycloak URL (baked into the JWT's
+          # `iss` claim, validated against issuer-uri above) isn't reachable from
+          # this backend's own network — e.g. Docker Compose, where the browser
+          # hits Keycloak via localhost but this container must use the service
+          # name. Leave unset when issuer-uri is directly reachable (bare-metal/VM).
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:}
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST}
     port: ${SPRING_RABBITMQ_PORT:5672}
@@ -77,5 +83,8 @@ easywork:
     host: ${MEILISEARCH_HOST}
     api-key: ${MEILISEARCH_API_KEY}
   ingest:
-    tessdata-path: ${TESSDATA_PATH:/usr/share/tessdata}
+    # Default matches the tesseract-ocr apt package's real install path on the
+    # runtime-ocr image's Ubuntu Jammy base (backend/Dockerfile) — override via
+    # TESSDATA_PATH if deploying on a different base image/OS package layout.
+    tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
     ocr-languages: ${OCR_LANGUAGES:fra+eng}

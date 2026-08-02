@@ -202,6 +202,101 @@ class DocumentServiceTest {
         verify(documentClassifier, never()).classify(any());
     }
 
+    @Test
+    void onIngestCompleted_transitionsToFailed_andStoresError_onFailure() {
+        UUID id = UUID.randomUUID();
+        Document doc = new Document();
+        doc.setId(id);
+        doc.setOwnerId("user1");
+        doc.setStatus(DocumentStatus.RECEIVED);
+
+        when(documentRepository.findById(id)).thenReturn(Optional.of(doc));
+        when(documentRepository.save(any())).thenReturn(doc);
+
+        documentService.onIngestCompleted(
+            new IngestCompletedEvent(id, null, null, null, false, false, "Tesseract crashed"));
+
+        assertThat(doc.getStatus()).isEqualTo(DocumentStatus.FAILED);
+        assertThat(doc.getLastIngestError()).isEqualTo("Tesseract crashed");
+        verify(documentClassifier, never()).classify(any());
+        verify(eventPublisher, never()).publishEvent(any(DocumentReadyEvent.class));
+    }
+
+    // --- existsDuplicate ---
+
+    @Test
+    void existsDuplicate_returnsTrue_whenAnotherDocumentSharesHash() {
+        UUID otherId = UUID.randomUUID();
+        Document other = new Document();
+        other.setId(otherId);
+        when(documentRepository.findByContentHashAndOwnerId("hash", "user1")).thenReturn(Optional.of(other));
+
+        boolean result = documentService.existsDuplicate("hash", "user1", UUID.randomUUID());
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void existsDuplicate_returnsFalse_whenOnlyMatchIsSelf() {
+        UUID id = UUID.randomUUID();
+        Document self = new Document();
+        self.setId(id);
+        when(documentRepository.findByContentHashAndOwnerId("hash", "user1")).thenReturn(Optional.of(self));
+
+        boolean result = documentService.existsDuplicate("hash", "user1", id);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void existsDuplicate_returnsFalse_whenNoMatch() {
+        when(documentRepository.findByContentHashAndOwnerId("hash", "user1")).thenReturn(Optional.empty());
+
+        boolean result = documentService.existsDuplicate("hash", "user1", UUID.randomUUID());
+
+        assertThat(result).isFalse();
+    }
+
+    // --- retryIngest ---
+
+    @Test
+    void retryIngest_transitionsFailedToReceived_andRepublishesUploadEvent() {
+        UUID id = UUID.randomUUID();
+        Document doc = new Document();
+        doc.setId(id);
+        doc.setOwnerId("user1");
+        doc.setStatus(DocumentStatus.FAILED);
+        doc.setLastIngestError("boom");
+        doc.setStorageKey("key");
+        doc.setMimeType("application/pdf");
+
+        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
+        when(documentRepository.save(any())).thenReturn(doc);
+
+        documentService.retryIngest(id, "user1");
+
+        assertThat(doc.getStatus()).isEqualTo(DocumentStatus.RECEIVED);
+        assertThat(doc.getLastIngestError()).isNull();
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(DocumentUploadedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().documentId()).isEqualTo(id);
+        assertThat(eventCaptor.getValue().storageKey()).isEqualTo("key");
+    }
+
+    @Test
+    void retryIngest_throwsIllegalState_whenNotFailed() {
+        UUID id = UUID.randomUUID();
+        Document doc = readyDocument(id, "user1");
+        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
+
+        assertThatThrownBy(() -> documentService.retryIngest(id, "user1"))
+            .isInstanceOf(IllegalStateException.class);
+
+        verify(documentRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
     // --- lifecycle transitions ---
 
     @Test

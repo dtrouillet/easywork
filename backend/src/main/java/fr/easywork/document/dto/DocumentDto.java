@@ -16,6 +16,8 @@ public record DocumentDto(
     Long fileSize,
     Integer pageCount,
     boolean ocrApplied,
+    String lastIngestError,
+    String extractedText,
     LocalDate documentDate,
     List<TagDto> tags,
     CorrespondentDto correspondent,

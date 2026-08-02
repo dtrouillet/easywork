@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Archive, Trash2, RotateCcw } from "lucide-react";
+import { Archive, Trash2, RotateCcw, RefreshCw } from "lucide-react";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import type { DocumentDto } from "@/lib/api/types";
 import { MimeIcon } from "./mime-icon";
@@ -14,6 +14,7 @@ const statusColors: Record<string, string> = {
   READY: "text-green-600 bg-green-50",
   ARCHIVED: "text-gray-600 bg-gray-100",
   TRASH: "text-red-600 bg-red-50",
+  FAILED: "text-red-700 bg-red-100",
 };
 
 interface DocumentCardProps {
@@ -21,6 +22,7 @@ interface DocumentCardProps {
   onTrash?: (id: string) => void;
   onArchive?: (id: string) => void;
   onRestore?: (id: string) => void;
+  onRetry?: (id: string) => void;
 }
 
 export function DocumentCard({
@@ -28,6 +30,7 @@ export function DocumentCard({
   onTrash,
   onArchive,
   onRestore,
+  onRetry,
 }: DocumentCardProps) {
   return (
     <div className="group flex items-start gap-3 rounded-lg border border-border p-4 bg-background hover:bg-accent/50 transition-colors">
@@ -51,6 +54,12 @@ export function DocumentCard({
             <span>· {doc.correspondent.name}</span>
           )}
         </div>
+
+        {doc.status === "FAILED" && doc.lastIngestError && (
+          <p className="mt-1 text-xs text-destructive truncate" title={doc.lastIngestError}>
+            {doc.lastIngestError}
+          </p>
+        )}
 
         {doc.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -103,6 +112,15 @@ export function DocumentCard({
               title="Restore"
             >
               <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
+          {doc.status === "FAILED" && onRetry && (
+            <button
+              onClick={() => onRetry(doc.id)}
+              className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+              title="Retry processing"
+            >
+              <RefreshCw className="h-4 w-4" />
             </button>
           )}
         </div>

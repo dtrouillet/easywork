@@ -6,7 +6,8 @@ export type DocumentStatus =
   | "READY"
   | "ARCHIVED"
   | "TRASH"
-  | "DELETED";
+  | "DELETED"
+  | "FAILED";
 
 export interface TagDto {
   id: string;
@@ -34,6 +35,8 @@ export interface DocumentDto {
   fileSize: number;
   pageCount: number | null;
   ocrApplied: boolean;
+  lastIngestError: string | null;
+  extractedText: string | null;
   documentDate: string | null;
   tags: TagDto[];
   correspondent: CorrespondentDto | null;

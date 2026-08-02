@@ -6,6 +6,7 @@ import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.PageResponse;
 import fr.easywork.document.exception.DocumentNotFoundException;
 import fr.easywork.document.exception.UnsupportedMimeTypeException;
+import org.mockito.Mockito;
 import fr.easywork.document.service.DocumentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +43,7 @@ class DocumentControllerTest {
             "file", "invoice.pdf", "application/pdf", "content".getBytes(StandardCharsets.UTF_8));
         var expected = new DocumentDto(
             UUID.randomUUID(), "invoice.pdf", DocumentStatus.RECEIVED, "invoice.pdf",
-            "application/pdf", 7L, null, false, null, List.of(), null, null, null, null);
+            "application/pdf", 7L, null, false, null, null, null, List.of(), null, null, null, null);
         when(documentService.upload(file, "user-sub")).thenReturn(expected);
 
         var result = controller.upload(file, jwt);
@@ -89,5 +90,42 @@ class DocumentControllerTest {
 
         assertThatThrownBy(() -> controller.get(id, jwt))
             .isInstanceOf(DocumentNotFoundException.class);
+    }
+
+    // --- retry ---
+
+    @Test
+    void retry_delegatesToService() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+        UUID id = UUID.randomUUID();
+
+        controller.retry(id, jwt);
+
+        Mockito.verify(documentService).retryIngest(id, "user-sub");
+    }
+
+    @Test
+    void retry_propagatesNotFound() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+        UUID id = UUID.randomUUID();
+        Mockito.doThrow(new DocumentNotFoundException(id))
+            .when(documentService).retryIngest(id, "user-sub");
+
+        assertThatThrownBy(() -> controller.retry(id, jwt))
+            .isInstanceOf(DocumentNotFoundException.class);
+    }
+
+    @Test
+    void retry_propagatesInvalidStateException_whenNotFailed() {
+        var jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("user-sub");
+        UUID id = UUID.randomUUID();
+        Mockito.doThrow(new IllegalStateException("Cannot transition"))
+            .when(documentService).retryIngest(id, "user-sub");
+
+        assertThatThrownBy(() -> controller.retry(id, jwt))
+            .isInstanceOf(IllegalStateException.class);
     }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
@@ -12,6 +13,9 @@ import {
   Trash2,
   RotateCcw,
   Trash,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
 import { formatBytes, formatDate } from "@/lib/utils";
@@ -25,6 +29,7 @@ export default function DocumentDetailPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [showExtractedText, setShowExtractedText] = useState(false);
 
   const { data: doc, isLoading } = useQuery({
     queryKey: ["document", id],
@@ -48,6 +53,14 @@ export default function DocumentDetailPage() {
   const restore = useMutation({
     mutationFn: () => documentsApi(session!.accessToken).restore(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["document", id] }),
+  });
+
+  const retry = useMutation({
+    mutationFn: () => documentsApi(session!.accessToken).retry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document", id] });
+    },
   });
 
   const permanentDelete = useMutation({
@@ -162,6 +175,15 @@ export default function DocumentDetailPage() {
                 <RotateCcw className="h-4 w-4" /> Restore
               </button>
             )}
+            {doc.status === "FAILED" && (
+              <button
+                onClick={() => retry.mutate()}
+                disabled={retry.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" /> Retry processing
+              </button>
+            )}
             {doc.status === "TRASH" && (
               <>
                 <button
@@ -212,6 +234,15 @@ export default function DocumentDetailPage() {
             ))}
           </div>
 
+          {doc.status === "FAILED" && doc.lastIngestError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide mb-1 text-destructive">
+                Processing failed
+              </p>
+              <p className="text-sm text-destructive/90">{doc.lastIngestError}</p>
+            </div>
+          )}
+
           <div className="rounded-lg border border-border p-4">
             <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">
               Classification
@@ -222,6 +253,29 @@ export default function DocumentDetailPage() {
               onSave={(request) => classify.mutate(request)}
             />
           </div>
+
+          {doc.extractedText && (
+            <div className="rounded-lg border border-border">
+              <button
+                onClick={() => setShowExtractedText((prev) => !prev)}
+                className="flex w-full items-center gap-1.5 p-4 text-left"
+              >
+                {showExtractedText ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                )}
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Extracted text
+                </span>
+              </button>
+              {showExtractedText && (
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words border-t border-border p-4 text-xs font-[family-name:var(--font-mono)] text-muted-foreground">
+                  {doc.extractedText}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

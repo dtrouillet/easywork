@@ -46,7 +46,8 @@ easywork:
     host: http://localhost:7700
     api-key: masterKey
   ingest:
-    tessdata-path: /usr/share/tessdata
+    # See application.yml / backend/Dockerfile comment on this path.
+    tessdata-path: /usr/share/tesseract-ocr/4.00/tessdata
     ocr-languages: fra+eng
 
 logging:

@@ -6,16 +6,16 @@ import java.util.Set;
 public enum DocumentStatus {
 
     RECEIVED {
-        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(EXTRACTING); }
+        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(EXTRACTING, FAILED); }
     },
     EXTRACTING {
-        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(OCR, CLASSIFYING); }
+        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(OCR, CLASSIFYING, FAILED); }
     },
     OCR {
-        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(CLASSIFYING); }
+        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(CLASSIFYING, FAILED); }
     },
     CLASSIFYING {
-        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(READY); }
+        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(READY, FAILED); }
     },
     READY {
         @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(ARCHIVED, TRASH); }
@@ -28,6 +28,10 @@ public enum DocumentStatus {
     },
     DELETED {
         @Override public Set<DocumentStatus> validNextStates() { return EnumSet.noneOf(DocumentStatus.class); }
+    },
+    /** Terminal-until-retried: extraction/OCR/classification failed. Retry re-enters at RECEIVED. */
+    FAILED {
+        @Override public Set<DocumentStatus> validNextStates() { return EnumSet.of(RECEIVED); }
     };
 
     public abstract Set<DocumentStatus> validNextStates();

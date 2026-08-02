@@ -1,5 +1,6 @@
 package fr.easywork.document.service;
 
+import fr.easywork.document.DocumentDuplicateCheck;
 import fr.easywork.document.domain.Document;
 import fr.easywork.document.domain.DocumentStatus;
 import fr.easywork.document.dto.DocumentDto;
@@ -42,7 +43,7 @@ import java.util.UUID;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class DocumentService {
+public class DocumentService implements DocumentDuplicateCheck {
 
     private final DocumentRepository documentRepository;
     private final TagRepository tagRepository;
@@ -151,6 +152,13 @@ public class DocumentService {
         return storageService.download(doc.getStorageKey());
     }
 
+    @Override
+    public boolean existsDuplicate(String contentHash, String ownerId, UUID excludingDocumentId) {
+        return documentRepository.findByContentHashAndOwnerId(contentHash, ownerId)
+            .filter(existing -> !existing.getId().equals(excludingDocumentId))
+            .isPresent();
+    }
+
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     @ApplicationModuleListener
     public void onIngestCompleted(IngestCompletedEvent event) {
@@ -158,6 +166,9 @@ public class DocumentService {
             .orElseThrow(() -> new DocumentNotFoundException(event.documentId()));
 
         if (!event.success()) {
+            doc.transitionTo(DocumentStatus.FAILED);
+            doc.setLastIngestError(event.errorMessage());
+            documentRepository.save(doc);
             return;
         }
 
@@ -218,6 +229,18 @@ public class DocumentService {
         Document doc = getOwned(id, ownerId);
         doc.transitionTo(DocumentStatus.READY);
         documentRepository.save(doc);
+    }
+
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public void retryIngest(UUID id, String ownerId) {
+        Document doc = getOwned(id, ownerId);
+        doc.transitionTo(DocumentStatus.RECEIVED);
+        doc.setLastIngestError(null);
+        documentRepository.save(doc);
+
+        eventPublisher.publishEvent(new DocumentUploadedEvent(
+            doc.getId(), doc.getStorageKey(), doc.getMimeType(), doc.getOwnerId()));
     }
 
     /**
