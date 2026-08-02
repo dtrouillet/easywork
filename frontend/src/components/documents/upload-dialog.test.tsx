@@ -74,11 +74,11 @@ describe("UploadDialog", () => {
     const input = screen.getByTestId("file-input");
     await user.upload(input, [pdfFile("bad.pdf")]);
 
-    await waitFor(() => expect(screen.getByText("Type de fichier non supporté")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Unsupported file type")).toBeInTheDocument());
     expect(uploadWithProgress).toHaveBeenCalledTimes(1);
 
     uploadWithProgress.mockResolvedValueOnce({ id: "doc-2" });
-    await user.click(screen.getByTitle("Réessayer"));
+    await user.click(screen.getByTitle("Retry"));
 
     await waitFor(() => expect(uploadWithProgress).toHaveBeenCalledTimes(2));
   });
@@ -91,7 +91,7 @@ describe("UploadDialog", () => {
     await user.upload(input, [pdfFile("keep.pdf"), pdfFile("remove.pdf")]);
 
     await waitFor(() => expect(screen.getByText("remove.pdf")).toBeInTheDocument());
-    const removeButtons = screen.getAllByTitle("Retirer");
+    const removeButtons = screen.getAllByTitle("Remove");
     await user.click(removeButtons[1]);
 
     expect(screen.queryByText("remove.pdf")).not.toBeInTheDocument();

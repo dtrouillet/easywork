@@ -17,6 +17,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
+          idToken: account.id_token,
         };
       }
 
@@ -56,6 +57,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
+      session.idToken = token.idToken as string | undefined;
       session.error = token.error as "RefreshAccessTokenError" | undefined;
       return session;
     },
@@ -65,6 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 declare module "next-auth" {
   interface Session {
     accessToken: string;
+    idToken?: string;
     error?: "RefreshAccessTokenError";
   }
 }
