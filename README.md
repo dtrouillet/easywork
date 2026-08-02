@@ -12,26 +12,51 @@
 
 | Tool | Version | Notes |
 |---|---|---|
-| Docker + Docker Compose | 24+ | For infrastructure services |
-| Java | 21 (LTS) | Run `java -version` to check |
-| Maven | 3.9+ | Or use the included `./mvnw` wrapper |
+| Docker + Docker Compose | 24+ | Runs infrastructure, and the backend by default |
 | Node.js | 20.9+ | Use [nvm](https://github.com/nvm-sh/nvm): `nvm use` (reads `.nvmrc`) |
+| Java | 21 (LTS) | Only needed for the Maven-based backend alternative below |
+| Maven | 3.9+ | Or use the included `./mvnw` wrapper |
 
 ---
 
-### 1 — Start infrastructure
+### 1 — Start infrastructure + backend
 
 ```bash
-docker compose up -d minio rabbitmq meilisearch keycloak
+docker compose up -d
 ```
 
-This starts MinIO (object storage), RabbitMQ (async queue), Meilisearch (search) and Keycloak (auth) without building the backend image. Postgres is also available if you prefer it over the default H2 in-memory database.
+This builds and starts everything except the frontend: Postgres, MinIO (object
+storage), RabbitMQ (async queue), Meilisearch (search), Keycloak (auth), and the
+`easywork` backend itself (`document` + `ingest` + `search` modules in one
+process, built from `backend/Dockerfile`'s `runtime-ocr` target — includes
+Tesseract OCR). The backend connects to the real Postgres container, not H2.
 
-Wait for all services to be healthy:
+The first run builds the backend image, which takes a few minutes. Wait for
+everything to be healthy:
 
 ```bash
 docker compose ps
 ```
+
+Health check: http://localhost:8080/actuator/health → `{"status":"UP"}`
+Swagger UI: http://localhost:8080/swagger-ui.html
+
+After pulling backend code changes, rebuild and restart just that service:
+
+```bash
+docker compose up -d --build easywork
+```
+
+> **Alternative — running the backend on the host with Maven** (faster
+> iteration, no image rebuild): start only the infra containers, then run the
+> backend with the `local` profile (H2 in-memory, no Postgres needed):
+> ```bash
+> docker compose up -d postgres minio rabbitmq meilisearch keycloak
+> cd backend
+> SPRING_PROFILES_ACTIVE=local,ingest,search ./mvnw spring-boot:run
+> ```
+> Don't start the Compose `easywork` service at the same time as this — both
+> bind port 8080.
 
 ---
 
@@ -53,7 +78,7 @@ To reset Keycloak to a clean state: `docker compose down -v` (removes all volume
 
 ---
 
-### 3 — Configure the frontend
+### 3 — Configure and start the frontend
 
 Copy the frontend env file — all values are pre-filled for local dev:
 
@@ -65,23 +90,7 @@ The default values match the realm JSON (client secret `easywork-secret`).
 Only `NEXTAUTH_SECRET` can be left as-is for local dev; use a strong random
 value in production (`openssl rand -base64 32`).
 
----
-
-### 4 — Start the backend
-
-```bash
-cd backend
-SPRING_PROFILES_ACTIVE=local,ingest,search ./mvnw spring-boot:run
-```
-
-The `local` profile uses H2 (no Postgres needed), connects to RabbitMQ, MinIO and Meilisearch on localhost, and points JWT validation at Keycloak on port 8180. Flyway runs migrations automatically.
-
-Health check: http://localhost:8080/actuator/health → `{"status":"UP"}`  
-Swagger UI: http://localhost:8080/swagger-ui.html
-
----
-
-### 5 — Start the frontend
+The frontend runs on the host, not in Docker:
 
 ```bash
 cd frontend
@@ -90,7 +99,8 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 — click **Sign in with SSO** to authenticate via Keycloak.
+Open http://localhost:3000 — click **Sign in with SSO** and log in with the
+`dev` / `dev` test user to authenticate via Keycloak.
 
 ---
 
