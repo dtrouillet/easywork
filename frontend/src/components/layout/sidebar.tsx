@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
+import { Activity, FileText, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui-store";
 
 const nav = [
   { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/processing", label: "Processing", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

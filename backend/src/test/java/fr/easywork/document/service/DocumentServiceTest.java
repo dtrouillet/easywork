@@ -9,7 +9,6 @@ import fr.easywork.document.event.DocumentReadyEvent;
 import fr.easywork.document.event.DocumentUploadedEvent;
 import fr.easywork.document.event.IngestCompletedEvent;
 import fr.easywork.document.exception.DocumentNotFoundException;
-import fr.easywork.document.exception.DuplicateDocumentException;
 import fr.easywork.document.exception.EmptyFileException;
 import fr.easywork.document.mapper.DocumentMapper;
 import fr.easywork.document.repository.CorrespondentRepository;
@@ -176,7 +175,10 @@ class DocumentServiceTest {
     }
 
     @Test
-    void onIngestCompleted_deletesDuplicate_andThrows() {
+    void onIngestCompleted_deletesDuplicate_cleanlyWithoutThrowing() {
+        // No caller can ever catch an exception thrown from inside this async
+        // listener — it must clean up and return, not throw (regression test for
+        // the stuck-RECEIVED-with-storage-already-deleted bug this used to cause).
         UUID id = UUID.randomUUID();
         UUID existingId = UUID.randomUUID();
 
@@ -193,13 +195,12 @@ class DocumentServiceTest {
         when(documentRepository.findByContentHashAndOwnerId("hash", "user1"))
             .thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() ->
-            documentService.onIngestCompleted(new IngestCompletedEvent(id, "hash", "text", 1, false, true, null)))
-            .isInstanceOf(DuplicateDocumentException.class);
+        documentService.onIngestCompleted(new IngestCompletedEvent(id, "hash", "text", 1, false, true, null));
 
         verify(storageService).delete("key");
         verify(documentRepository).delete(doc);
         verify(documentClassifier, never()).classify(any());
+        verify(eventPublisher, never()).publishEvent(any(DocumentReadyEvent.class));
     }
 
     @Test
