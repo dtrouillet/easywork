@@ -62,7 +62,12 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <SessionProvider>
+    // Keycloak's access token lives 5 minutes (accessTokenLifespan, realm config).
+    // Without a refetch interval, useSession() only re-checks on mount/focus, so
+    // the token can sit expired for a while — the first API call then gets a 401
+    // and forces a sign-out before the jwt callback ever gets a chance to refresh
+    // it. Refetching well inside that window keeps the token refreshed proactively.
+    <SessionProvider refetchInterval={60}>
       <QueryClientProvider client={queryClient}>
         <SessionWatcher />
         {children}
