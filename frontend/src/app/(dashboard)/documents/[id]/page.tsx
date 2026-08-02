@@ -17,6 +17,7 @@ import { documentsApi } from "@/lib/api/documents";
 import { formatBytes, formatDate } from "@/lib/utils";
 import { formatLocation } from "@/lib/document-tree";
 import { ClassificationEditor } from "@/components/documents/classification-editor";
+import { DocumentPreview } from "@/components/documents/document-preview";
 import type { DocumentUpdateRequest } from "@/lib/api/types";
 
 export default function DocumentDetailPage() {
@@ -57,17 +58,23 @@ export default function DocumentDetailPage() {
     },
   });
 
-  const download = useMutation({
-    mutationFn: () => documentsApi(session!.accessToken).downloadFile(id),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = doc?.originalFilename ?? "document";
-      a.click();
-      URL.revokeObjectURL(url);
-    },
+  // Fetched once and shared between the inline preview and the Download button,
+  // rather than each triggering its own fetch of the same (potentially large) file.
+  const { data: fileBlob, isLoading: fileLoading, isError: fileError } = useQuery({
+    queryKey: ["document", id, "file"],
+    queryFn: () => documentsApi(session!.accessToken).downloadFile(id),
+    enabled: !!session,
   });
+
+  function handleDownload() {
+    if (!fileBlob) return;
+    const url = URL.createObjectURL(fileBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc?.originalFilename ?? "document";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const classify = useMutation({
     mutationFn: (request: DocumentUpdateRequest) =>
@@ -89,7 +96,7 @@ export default function DocumentDetailPage() {
   if (!doc) return null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.back()}
@@ -102,105 +109,120 @@ export default function DocumentDetailPage() {
         </h1>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => download.mutate()}
-          disabled={download.isPending}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-        >
-          {download.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          Download
-        </button>
-        {doc.status === "READY" && (
-          <>
-            <button
-              onClick={() => archive.mutate()}
-              disabled={archive.isPending}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-            >
-              <Archive className="h-4 w-4" /> Archive
-            </button>
-            <button
-              onClick={() => trash.mutate()}
-              disabled={trash.isPending}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-            >
-              <Trash2 className="h-4 w-4" /> Move to trash
-            </button>
-          </>
-        )}
-        {doc.status === "ARCHIVED" && (
-          <button
-            onClick={() => restore.mutate()}
-            disabled={restore.isPending}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-          >
-            <RotateCcw className="h-4 w-4" /> Restore
-          </button>
-        )}
-        {doc.status === "TRASH" && (
-          <>
-            <button
-              onClick={() => restore.mutate()}
-              disabled={restore.isPending}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-            >
-              <RotateCcw className="h-4 w-4" /> Restore
-            </button>
-            <button
-              onClick={() => {
-                if (confirm("Permanently delete this document? This cannot be undone.")) {
-                  permanentDelete.mutate();
-                }
-              }}
-              disabled={permanentDelete.isPending}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <Trash className="h-4 w-4" /> Delete permanently
-            </button>
-          </>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-border divide-y divide-border">
-        <div className="flex items-center gap-3 p-4">
-          <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="font-medium text-sm truncate">{doc.originalFilename}</p>
-            <p className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mt-0.5">
-              {doc.mimeType} · {formatBytes(doc.fileSize)}
-              {doc.pageCount ? ` · ${doc.pageCount} pages` : ""}
-              {doc.ocrApplied ? " · OCR" : ""}
-            </p>
-          </div>
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full max-w-[700px]">
+          <DocumentPreview
+            blob={fileBlob}
+            isLoading={fileLoading}
+            isError={fileError}
+            mimeType={doc.mimeType}
+            originalFilename={doc.originalFilename}
+            onDownload={handleDownload}
+          />
         </div>
 
-        {[
-          { label: "Status", value: doc.status },
-          { label: "Created", value: formatDate(doc.createdAt) },
-          { label: "Updated", value: formatDate(doc.updatedAt) },
-          { label: "Location", value: formatLocation(doc) },
-        ].map(({ label, value }) => (
-          <div key={label} className="flex items-center px-4 py-3 gap-4">
-            <span className="text-sm text-muted-foreground w-36 shrink-0">{label}</span>
-            <span className="text-sm font-[family-name:var(--font-mono)] truncate">{value}</span>
+        <div className="w-full lg:w-96 shrink-0 space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleDownload}
+              disabled={fileLoading || !fileBlob}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              {fileLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download
+            </button>
+            {doc.status === "READY" && (
+              <>
+                <button
+                  onClick={() => archive.mutate()}
+                  disabled={archive.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+                >
+                  <Archive className="h-4 w-4" /> Archive
+                </button>
+                <button
+                  onClick={() => trash.mutate()}
+                  disabled={trash.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" /> Move to trash
+                </button>
+              </>
+            )}
+            {doc.status === "ARCHIVED" && (
+              <button
+                onClick={() => restore.mutate()}
+                disabled={restore.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+              >
+                <RotateCcw className="h-4 w-4" /> Restore
+              </button>
+            )}
+            {doc.status === "TRASH" && (
+              <>
+                <button
+                  onClick={() => restore.mutate()}
+                  disabled={restore.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4" /> Restore
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Permanently delete this document? This cannot be undone.")) {
+                      permanentDelete.mutate();
+                    }
+                  }}
+                  disabled={permanentDelete.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash className="h-4 w-4" /> Delete permanently
+                </button>
+              </>
+            )}
           </div>
-        ))}
-      </div>
 
-      <div className="rounded-lg border border-border p-4">
-        <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">
-          Classification
-        </p>
-        <ClassificationEditor
-          doc={doc}
-          saving={classify.isPending}
-          onSave={(request) => classify.mutate(request)}
-        />
+          <div className="rounded-lg border border-border divide-y divide-border">
+            <div className="flex items-center gap-3 p-4">
+              <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium text-sm truncate">{doc.originalFilename}</p>
+                <p className="text-xs text-muted-foreground font-[family-name:var(--font-mono)] mt-0.5">
+                  {doc.mimeType} · {formatBytes(doc.fileSize)}
+                  {doc.pageCount ? ` · ${doc.pageCount} pages` : ""}
+                  {doc.ocrApplied ? " · OCR" : ""}
+                </p>
+              </div>
+            </div>
+
+            {[
+              { label: "Status", value: doc.status },
+              { label: "Created", value: formatDate(doc.createdAt) },
+              { label: "Updated", value: formatDate(doc.updatedAt) },
+              { label: "Location", value: formatLocation(doc) },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center px-4 py-3 gap-4">
+                <span className="text-sm text-muted-foreground w-36 shrink-0">{label}</span>
+                <span className="text-sm font-[family-name:var(--font-mono)] truncate">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-lg border border-border p-4">
+            <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">
+              Classification
+            </p>
+            <ClassificationEditor
+              doc={doc}
+              saving={classify.isPending}
+              onSave={(request) => classify.mutate(request)}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
