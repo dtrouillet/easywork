@@ -38,6 +38,17 @@ class DocumentTypeController {
         return documentTypeService.create(name, retentionDays);
     }
 
+    @PatchMapping("/{id}")
+    @Operation(summary = "Rename a document type / change its retention")
+    @ApiResponse(responseCode = "200", description = "Document type updated")
+    @ApiResponse(responseCode = "409", description = "Name already exists")
+    DocumentTypeDto update(
+            @PathVariable UUID id,
+            @RequestParam @NotBlank String name,
+            @RequestParam(required = false) Integer retentionDays) {
+        return documentTypeService.update(id, name, retentionDays);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete a document type")
@@ -45,5 +56,13 @@ class DocumentTypeController {
     @ApiResponse(responseCode = "409", description = "Document type still referenced by documents")
     void delete(@PathVariable UUID id) {
         documentTypeService.delete(id);
+    }
+
+    @PostMapping("/{id}/merge")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Merge a document type into another — reassigns its documents, then deletes it")
+    @ApiResponse(responseCode = "204", description = "Document type merged")
+    void merge(@PathVariable UUID id, @RequestParam UUID targetId) {
+        documentTypeService.merge(id, targetId);
     }
 }

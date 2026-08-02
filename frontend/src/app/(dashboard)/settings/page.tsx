@@ -1,4 +1,5 @@
-import { Bell, Palette, Shield, User } from "lucide-react";
+import Link from "next/link";
+import { Bell, Palette, Shield, Tags, User } from "lucide-react";
 
 const sections = [
   {
@@ -36,6 +37,19 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/settings/taxonomy"
+          className="rounded-lg border border-border p-4 hover:border-foreground/30 transition-colors"
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <Tags className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Tags, correspondents & types</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Add, rename, delete, or merge tags, correspondents, and document types.
+          </p>
+        </Link>
+
         {sections.map(({ icon: Icon, title, description }) => (
           <div
             key={title}

@@ -36,6 +36,14 @@ class CorrespondentController {
         return correspondentService.create(name);
     }
 
+    @PatchMapping("/{id}")
+    @Operation(summary = "Rename a correspondent")
+    @ApiResponse(responseCode = "200", description = "Correspondent updated")
+    @ApiResponse(responseCode = "409", description = "Name already exists")
+    CorrespondentDto update(@PathVariable UUID id, @RequestParam @NotBlank String name) {
+        return correspondentService.update(id, name);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete a correspondent")
@@ -43,5 +51,13 @@ class CorrespondentController {
     @ApiResponse(responseCode = "409", description = "Correspondent still referenced by documents")
     void delete(@PathVariable UUID id) {
         correspondentService.delete(id);
+    }
+
+    @PostMapping("/{id}/merge")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Merge a correspondent into another — reassigns its documents, then deletes it")
+    @ApiResponse(responseCode = "204", description = "Correspondent merged")
+    void merge(@PathVariable UUID id, @RequestParam UUID targetId) {
+        correspondentService.merge(id, targetId);
     }
 }

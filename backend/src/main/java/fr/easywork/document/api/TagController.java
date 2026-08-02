@@ -39,6 +39,17 @@ class TagController {
         return tagService.create(name, color);
     }
 
+    @PatchMapping("/{id}")
+    @Operation(summary = "Rename a tag / change its color")
+    @ApiResponse(responseCode = "200", description = "Tag updated")
+    @ApiResponse(responseCode = "409", description = "Name already exists")
+    TagDto update(
+            @PathVariable UUID id,
+            @RequestParam @NotBlank String name,
+            @RequestParam(required = false) @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String color) {
+        return tagService.update(id, name, color);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete a tag")
@@ -46,5 +57,13 @@ class TagController {
     @ApiResponse(responseCode = "409", description = "Tag still referenced by documents")
     void delete(@PathVariable UUID id) {
         tagService.delete(id);
+    }
+
+    @PostMapping("/{id}/merge")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Merge a tag into another — reassigns its documents, then deletes it")
+    @ApiResponse(responseCode = "204", description = "Tag merged")
+    void merge(@PathVariable UUID id, @RequestParam UUID targetId) {
+        tagService.merge(id, targetId);
     }
 }

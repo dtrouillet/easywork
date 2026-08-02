@@ -9,9 +9,9 @@ import { correspondentsApi } from "@/lib/api/correspondents";
 import { documentTypesApi } from "@/lib/api/document-types";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { TAG_COLORS } from "@/lib/tag-colors";
 import type { DocumentDto, DocumentUpdateRequest } from "@/lib/api/types";
 
-const TAG_COLORS = ["#2F6F5E", "#C98A2C", "#5B6EAE", "#A34B4B", "#6B7280", "#0EA5E9"];
 const NEW_OPTION = "__new__";
 
 interface ClassificationEditorProps {
@@ -23,16 +23,21 @@ interface ClassificationEditorProps {
 export function ClassificationEditor({ doc, onSave, saving }: ClassificationEditorProps) {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const token = session!.accessToken;
 
-  const { data: tags } = useQuery({ queryKey: ["tags"], queryFn: () => tagsApi(token).list() });
+  const { data: tags } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => tagsApi(session!.accessToken).list(),
+    enabled: !!session,
+  });
   const { data: correspondents } = useQuery({
     queryKey: ["correspondents"],
-    queryFn: () => correspondentsApi(token).list(),
+    queryFn: () => correspondentsApi(session!.accessToken).list(),
+    enabled: !!session,
   });
   const { data: documentTypes } = useQuery({
     queryKey: ["document-types"],
-    queryFn: () => documentTypesApi(token).list(),
+    queryFn: () => documentTypesApi(session!.accessToken).list(),
+    enabled: !!session,
   });
 
   const [correspondentId, setCorrespondentId] = useState(doc.correspondent?.id ?? "");
@@ -65,7 +70,7 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
   async function handleCreateCorrespondent() {
     if (!newCorrespondentName.trim()) return;
     try {
-      const created = await correspondentsApi(token).create(newCorrespondentName.trim());
+      const created = await correspondentsApi(session!.accessToken).create(newCorrespondentName.trim());
       await queryClient.invalidateQueries({ queryKey: ["correspondents"] });
       setCorrespondentId(created.id);
       setNewCorrespondentName("");
@@ -79,7 +84,7 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
   async function handleCreateType() {
     if (!newTypeName.trim()) return;
     try {
-      const created = await documentTypesApi(token).create(newTypeName.trim());
+      const created = await documentTypesApi(session!.accessToken).create(newTypeName.trim());
       await queryClient.invalidateQueries({ queryKey: ["document-types"] });
       setDocumentTypeId(created.id);
       setNewTypeName("");
@@ -93,7 +98,7 @@ export function ClassificationEditor({ doc, onSave, saving }: ClassificationEdit
   async function handleCreateTag() {
     if (!newTagName.trim()) return;
     try {
-      const created = await tagsApi(token).create(newTagName.trim(), newTagColor ?? undefined);
+      const created = await tagsApi(session!.accessToken).create(newTagName.trim(), newTagColor ?? undefined);
       await queryClient.invalidateQueries({ queryKey: ["tags"] });
       toggleTag(created.id);
       setNewTagName("");
