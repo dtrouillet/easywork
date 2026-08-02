@@ -86,6 +86,14 @@ class DocumentController {
         return documentService.update(id, jwt.getSubject(), request);
     }
 
+    @PostMapping("/{id}/reclassify")
+    @Operation(summary = "Re-run auto-classification (tags, correspondent, type) on an existing document")
+    @ApiResponse(responseCode = "200", description = "Document re-classified")
+    @ApiResponse(responseCode = "404", description = "Document not found")
+    DocumentDto reclassify(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return documentService.reclassify(id, jwt.getSubject());
+    }
+
     @GetMapping("/{id}/file")
     @Operation(summary = "Download original file")
     @ApiResponse(responseCode = "200", description = "File content")

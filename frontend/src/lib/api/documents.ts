@@ -43,6 +43,9 @@ export function documentsApi(token: string) {
     retry: (id: string) =>
       client.post<void>(`/api/v1/documents/${id}/retry`),
 
+    reclassify: (id: string) =>
+      client.post<DocumentDto>(`/api/v1/documents/${id}/reclassify`),
+
     delete: (id: string) =>
       client.delete<void>(`/api/v1/documents/${id}`),
   };

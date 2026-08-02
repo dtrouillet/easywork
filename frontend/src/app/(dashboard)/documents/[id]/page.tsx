@@ -18,7 +18,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
-import { formatBytes, formatDate } from "@/lib/utils";
+import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { formatLocation } from "@/lib/document-tree";
 import { ClassificationEditor } from "@/components/documents/classification-editor";
 import { DocumentPreview } from "@/components/documents/document-preview";
@@ -92,6 +92,14 @@ export default function DocumentDetailPage() {
   const classify = useMutation({
     mutationFn: (request: DocumentUpdateRequest) =>
       documentsApi(session!.accessToken).update(id, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document", id] });
+    },
+  });
+
+  const reclassify = useMutation({
+    mutationFn: () => documentsApi(session!.accessToken).reclassify(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       queryClient.invalidateQueries({ queryKey: ["document", id] });
@@ -244,10 +252,22 @@ export default function DocumentDetailPage() {
           )}
 
           <div className="rounded-lg border border-border p-4">
-            <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">
-              Classification
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Classification
+              </p>
+              <button
+                onClick={() => reclassify.mutate()}
+                disabled={reclassify.isPending}
+                title="Re-run auto-classification"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", reclassify.isPending && "animate-spin")} />
+                Re-run auto-classification
+              </button>
+            </div>
             <ClassificationEditor
+              key={doc.updatedAt}
               doc={doc}
               saving={classify.isPending}
               onSave={(request) => classify.mutate(request)}

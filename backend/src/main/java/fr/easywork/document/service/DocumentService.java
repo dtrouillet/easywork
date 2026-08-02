@@ -142,6 +142,33 @@ public class DocumentService implements DocumentDuplicateCheck {
         return mapper.toDto(doc);
     }
 
+    /**
+     * Re-runs auto-classification on demand (e.g. after creating a tag that
+     * matches text extracted from a document processed earlier). Safe to call any
+     * time — {@link DocumentClassifier#classify} only fills fields that are still
+     * unset, it never overwrites a manual assignment.
+     */
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public DocumentDto reclassify(UUID id, String ownerId) {
+        Document doc = getOwned(id, ownerId);
+        documentClassifier.classify(doc);
+        documentRepository.save(doc);
+
+        if (doc.getStatus() == DocumentStatus.READY || doc.getStatus() == DocumentStatus.ARCHIVED) {
+            eventPublisher.publishEvent(new DocumentReadyEvent(
+                doc.getId(), doc.getTitle(), doc.getExtractedText(), doc.getMimeType(),
+                doc.getDocumentDate(),
+                doc.getTags().stream().map(t -> t.getName()).toList(),
+                doc.getCorrespondent() != null ? doc.getCorrespondent().getName() : null,
+                doc.getDocumentType() != null ? doc.getDocumentType().getName() : null,
+                doc.getOwnerId()
+            ));
+        }
+
+        return mapper.toDto(doc);
+    }
+
     @PreAuthorize("isAuthenticated()")
     public InputStream download(UUID id, String ownerId) {
         Document doc = getOwned(id, ownerId);
