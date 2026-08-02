@@ -21,6 +21,7 @@ import { documentsApi } from "@/lib/api/documents";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { formatLocation } from "@/lib/document-tree";
 import { ClassificationEditor } from "@/components/documents/classification-editor";
+import { ClassificationSuggestionBanner } from "@/components/documents/classification-suggestion-banner";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import type { DocumentUpdateRequest } from "@/lib/api/types";
 
@@ -103,6 +104,7 @@ export default function DocumentDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       queryClient.invalidateQueries({ queryKey: ["document", id] });
+      queryClient.invalidateQueries({ queryKey: ["document", id, "suggestion"] });
     },
   });
 
@@ -250,6 +252,8 @@ export default function DocumentDetailPage() {
               <p className="text-sm text-destructive/90">{doc.lastIngestError}</p>
             </div>
           )}
+
+          <ClassificationSuggestionBanner documentId={id} />
 
           <div className="rounded-lg border border-border p-4">
             <div className="flex items-center justify-between mb-3">

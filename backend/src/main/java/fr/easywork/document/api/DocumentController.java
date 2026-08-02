@@ -1,6 +1,7 @@
 package fr.easywork.document.api;
 
 import fr.easywork.document.domain.DocumentStatus;
+import fr.easywork.document.dto.DocumentClassificationSuggestionDto;
 import fr.easywork.document.dto.DocumentDto;
 import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.DocumentUpdateRequest;
@@ -87,10 +88,10 @@ class DocumentController {
     }
 
     @PostMapping("/{id}/reclassify")
-    @Operation(summary = "Re-run auto-classification (tags, correspondent, type) on an existing document")
-    @ApiResponse(responseCode = "200", description = "Document re-classified")
+    @Operation(summary = "Re-run auto-classification and regenerate the pending suggestion for review")
+    @ApiResponse(responseCode = "200", description = "Suggestion regenerated")
     @ApiResponse(responseCode = "404", description = "Document not found")
-    DocumentDto reclassify(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+    DocumentClassificationSuggestionDto reclassify(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return documentService.reclassify(id, jwt.getSubject());
     }
 

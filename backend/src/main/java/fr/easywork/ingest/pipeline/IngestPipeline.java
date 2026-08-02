@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 
 @Component
 @Profile("ingest")
@@ -22,6 +23,7 @@ public class IngestPipeline {
     private final DocumentDuplicateCheck duplicateCheck;
     private final ContentExtractor extractor;
     private final OcrProcessor ocrProcessor;
+    private final EntityExtractor entityExtractor;
 
     public IngestCompletedEvent process(DocumentUploadedEvent event) {
         try {
@@ -37,7 +39,7 @@ public class IngestPipeline {
             // the authoritative delete-and-reject flow once this event comes back.
             if (duplicateCheck.existsDuplicate(contentHash, event.ownerId(), event.documentId())) {
                 return new IngestCompletedEvent(
-                    event.documentId(), contentHash, null, null, false, true, null);
+                    event.documentId(), contentHash, null, null, false, true, null, List.of());
             }
 
             ExtractionResult extraction = extractor.extract(new ByteArrayInputStream(fileBytes));
@@ -51,11 +53,12 @@ public class IngestPipeline {
             }
 
             return new IngestCompletedEvent(
-                event.documentId(), contentHash, text, extraction.pageCount(), ocrApplied, true, null);
+                event.documentId(), contentHash, text, extraction.pageCount(), ocrApplied, true, null,
+                entityExtractor.extract(text));
 
         } catch (Exception e) {
             return new IngestCompletedEvent(
-                event.documentId(), null, null, null, false, false, e.getMessage());
+                event.documentId(), null, null, null, false, false, e.getMessage(), List.of());
         }
     }
 

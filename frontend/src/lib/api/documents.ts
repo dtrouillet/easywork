@@ -1,5 +1,12 @@
 import { apiClient, uploadWithProgress } from "./client";
-import type { DocumentDto, DocumentSearchParams, DocumentUpdateRequest, PageResponse } from "./types";
+import type {
+  ConfirmSuggestionRequest,
+  DocumentClassificationSuggestionDto,
+  DocumentDto,
+  DocumentSearchParams,
+  DocumentUpdateRequest,
+  PageResponse,
+} from "./types";
 
 export function documentsApi(token: string) {
   const client = apiClient(token);
@@ -44,7 +51,16 @@ export function documentsApi(token: string) {
       client.post<void>(`/api/v1/documents/${id}/retry`),
 
     reclassify: (id: string) =>
-      client.post<DocumentDto>(`/api/v1/documents/${id}/reclassify`),
+      client.post<DocumentClassificationSuggestionDto>(`/api/v1/documents/${id}/reclassify`),
+
+    getSuggestion: (id: string) =>
+      client.get<DocumentClassificationSuggestionDto>(`/api/v1/documents/${id}/suggestion`),
+
+    confirmSuggestion: (id: string, request: ConfirmSuggestionRequest) =>
+      client.post<DocumentClassificationSuggestionDto>(`/api/v1/documents/${id}/suggestion/confirm`, request),
+
+    rejectSuggestion: (id: string) =>
+      client.post<DocumentClassificationSuggestionDto>(`/api/v1/documents/${id}/suggestion/reject`),
 
     delete: (id: string) =>
       client.delete<void>(`/api/v1/documents/${id}`),

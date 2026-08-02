@@ -18,6 +18,11 @@ class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(SuggestionNotFoundException.class)
+    ProblemDetail handleSuggestionNotFound(SuggestionNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
     @ExceptionHandler(DuplicateNameException.class)
     ProblemDetail handleDuplicateName(DuplicateNameException ex) {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

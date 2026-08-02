@@ -32,16 +32,17 @@ class DocumentClassifierTest {
     @InjectMocks DocumentClassifier classifier;
 
     @Test
-    void classify_assignsMatchingCorrespondent() {
+    void classify_suggestsMatchingCorrespondent() {
         Correspondent edf = new Correspondent("EDF");
         when(correspondentRepository.findAll()).thenReturn(List.of(edf));
         when(tagRepository.findAll()).thenReturn(List.of());
         when(documentTypeRepository.findAll()).thenReturn(List.of());
         Document doc = documentWithText("Facture EDF du mois de juillet");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isEqualTo(edf);
+        assertThat(result.correspondent()).isEqualTo(edf);
+        assertThat(doc.getCorrespondent()).isNull();
     }
 
     @Test
@@ -52,13 +53,13 @@ class DocumentClassifierTest {
         when(documentTypeRepository.findAll()).thenReturn(List.of());
         Document doc = documentWithText("facture edf du mois de juillet");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isEqualTo(edf);
+        assertThat(result.correspondent()).isEqualTo(edf);
     }
 
     @Test
-    void classify_assignsAllMatchingTags() {
+    void classify_suggestsAllMatchingTags() {
         Tag energie = new Tag("energie");
         Tag facture = new Tag("facture");
         when(correspondentRepository.findAll()).thenReturn(List.of());
@@ -66,86 +67,82 @@ class DocumentClassifierTest {
         when(documentTypeRepository.findAll()).thenReturn(List.of());
         Document doc = documentWithText("facture energie edf");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getTags()).containsExactlyInAnyOrder(energie, facture);
+        assertThat(result.tags()).containsExactlyInAnyOrder(energie, facture);
     }
 
     @Test
-    void classify_assignsMatchingDocumentType() {
+    void classify_suggestsMatchingDocumentType() {
         DocumentType invoice = new DocumentType("Facture");
         when(correspondentRepository.findAll()).thenReturn(List.of());
         when(tagRepository.findAll()).thenReturn(List.of());
         when(documentTypeRepository.findAll()).thenReturn(List.of(invoice));
         Document doc = documentWithText("Facture EDF du mois de juillet");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getDocumentType()).isEqualTo(invoice);
+        assertThat(result.documentType()).isEqualTo(invoice);
     }
 
     @Test
-    void classify_leavesFieldsNull_whenNoMatch() {
+    void classify_suggestsNothing_whenNoMatch() {
         when(correspondentRepository.findAll()).thenReturn(List.of(new Correspondent("Allianz")));
         when(tagRepository.findAll()).thenReturn(List.of(new Tag("sante")));
         when(documentTypeRepository.findAll()).thenReturn(List.of(new DocumentType("Attestation")));
         Document doc = documentWithText("Facture EDF du mois de juillet");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isNull();
-        assertThat(doc.getDocumentType()).isNull();
-        assertThat(doc.getTags()).isEmpty();
+        assertThat(result.correspondent()).isNull();
+        assertThat(result.documentType()).isNull();
+        assertThat(result.tags()).isEmpty();
     }
 
     @Test
-    void classify_doesNotOverwriteAlreadySetCorrespondent() {
+    void classify_doesNotSuggestCorrespondent_whenAlreadySetManually() {
         Correspondent manual = new Correspondent("Allianz");
         when(tagRepository.findAll()).thenReturn(List.of());
         when(documentTypeRepository.findAll()).thenReturn(List.of());
         Document doc = documentWithText("Facture EDF du mois de juillet");
         doc.setCorrespondent(manual);
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isEqualTo(manual);
+        assertThat(result.correspondent()).isNull();
         verify(correspondentRepository, never()).findAll();
     }
 
     @Test
-    void classify_doesNotOverwriteAlreadySetTags() {
+    void classify_doesNotSuggestTags_whenAlreadySetManually() {
         Tag manual = new Tag("perso");
         when(correspondentRepository.findAll()).thenReturn(List.of());
         when(documentTypeRepository.findAll()).thenReturn(List.of());
         Document doc = documentWithText("facture energie edf");
         doc.setTags(new HashSet<>(Set.of(manual)));
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getTags()).containsExactly(manual);
+        assertThat(result.tags()).isEmpty();
         verify(tagRepository, never()).findAll();
     }
 
     @Test
-    void classify_isNoOp_whenExtractedTextIsBlank() {
+    void classify_returnsEmptyResult_whenExtractedTextIsBlank() {
         Document doc = documentWithText("   ");
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isNull();
-        assertThat(doc.getDocumentType()).isNull();
-        assertThat(doc.getTags()).isEmpty();
+        assertThat(result.isEmpty()).isTrue();
     }
 
     @Test
-    void classify_isNoOp_whenExtractedTextIsNull() {
+    void classify_returnsEmptyResult_whenExtractedTextIsNull() {
         Document doc = documentWithText(null);
 
-        classifier.classify(doc);
+        ClassificationSuggestionResult result = classifier.classify(doc);
 
-        assertThat(doc.getCorrespondent()).isNull();
-        assertThat(doc.getDocumentType()).isNull();
-        assertThat(doc.getTags()).isEmpty();
+        assertThat(result.isEmpty()).isTrue();
     }
 
     private static Document documentWithText(String text) {

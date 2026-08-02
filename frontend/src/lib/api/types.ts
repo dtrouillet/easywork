@@ -78,3 +78,27 @@ export interface SearchResult {
   hits: DocumentDto[];
   totalHits: number;
 }
+
+export type SuggestionSource = "HEURISTIC" | "LEARNED";
+
+export type SuggestionStatus = "PENDING" | "CONFIRMED" | "REJECTED";
+
+export interface DocumentClassificationSuggestionDto {
+  documentId: string;
+  suggestedCorrespondent: CorrespondentDto | null;
+  suggestedDocumentType: DocumentTypeDto | null;
+  suggestedDocumentDate: string | null;
+  suggestedTags: TagDto[];
+  source: SuggestionSource;
+  status: SuggestionStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+  rejectedAt: string | null;
+}
+
+export interface ConfirmSuggestionRequest {
+  acceptCorrespondent: boolean;
+  acceptDocumentType: boolean;
+  acceptDocumentDate: boolean;
+  acceptTagIds: string[];
+}

@@ -3,6 +3,7 @@ package fr.easywork.document.service;
 import fr.easywork.document.DocumentDuplicateCheck;
 import fr.easywork.document.domain.Document;
 import fr.easywork.document.domain.DocumentStatus;
+import fr.easywork.document.dto.DocumentClassificationSuggestionDto;
 import fr.easywork.document.dto.DocumentDto;
 import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.DocumentUpdateRequest;
@@ -50,7 +51,8 @@ public class DocumentService implements DocumentDuplicateCheck {
     private final DocumentTypeRepository documentTypeRepository;
     private final StorageService storageService;
     private final UploadValidator uploadValidator;
-    private final DocumentClassifier documentClassifier;
+    private final SuggestionService suggestionService;
+    private final LearningService learningService;
     private final DocumentMapper mapper;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -126,6 +128,9 @@ public class DocumentService implements DocumentDuplicateCheck {
         }
 
         documentRepository.save(doc);
+        // ADR 0003: a manual correction that sets both a correspondent/type and tags is
+        // exactly the "confirmed" signal progressive learning is built on.
+        learningService.recordConfirmation(doc);
 
         // Re-index if the document is in a searchable state
         if (doc.getStatus() == DocumentStatus.READY || doc.getStatus() == DocumentStatus.ARCHIVED) {
@@ -144,29 +149,15 @@ public class DocumentService implements DocumentDuplicateCheck {
 
     /**
      * Re-runs auto-classification on demand (e.g. after creating a tag that
-     * matches text extracted from a document processed earlier). Safe to call any
-     * time — {@link DocumentClassifier#classify} only fills fields that are still
-     * unset, it never overwrites a manual assignment.
+     * matches text extracted from a document processed earlier) and returns the
+     * regenerated suggestion for review — it no longer applies anything directly
+     * (ADR 0003; breaking response-shape change from the old silent-apply
+     * behaviour, the only caller is this monorepo's own frontend).
      */
     @Transactional
     @PreAuthorize("isAuthenticated()")
-    public DocumentDto reclassify(UUID id, String ownerId) {
-        Document doc = getOwned(id, ownerId);
-        documentClassifier.classify(doc);
-        documentRepository.save(doc);
-
-        if (doc.getStatus() == DocumentStatus.READY || doc.getStatus() == DocumentStatus.ARCHIVED) {
-            eventPublisher.publishEvent(new DocumentReadyEvent(
-                doc.getId(), doc.getTitle(), doc.getExtractedText(), doc.getMimeType(),
-                doc.getDocumentDate(),
-                doc.getTags().stream().map(t -> t.getName()).toList(),
-                doc.getCorrespondent() != null ? doc.getCorrespondent().getName() : null,
-                doc.getDocumentType() != null ? doc.getDocumentType().getName() : null,
-                doc.getOwnerId()
-            ));
-        }
-
-        return mapper.toDto(doc);
+    public DocumentClassificationSuggestionDto reclassify(UUID id, String ownerId) {
+        return suggestionService.regenerateSuggestion(id, ownerId);
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -221,7 +212,7 @@ public class DocumentService implements DocumentDuplicateCheck {
             doc.transitionTo(DocumentStatus.OCR);
         }
         doc.transitionTo(DocumentStatus.CLASSIFYING);
-        documentClassifier.classify(doc);
+        suggestionService.generateSuggestion(doc, event.extractedEntities());
         doc.transitionTo(DocumentStatus.READY);
 
         documentRepository.save(doc);

@@ -8,30 +8,36 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES =
-        new PostgreSQLContainer<>("postgres:16-alpine");
+    // Singleton-container pattern (not @Testcontainers/@Container): these fields are
+    // declared in this shared abstract base, so every subclass's static field is the
+    // *same* JVM-static instance. The @Testcontainers JUnit5 extension stops @Container
+    // fields in an afterAll scoped to whichever subclass runs first — restarting the
+    // same container for a second subclass hands it a new mapped port that the first
+    // subclass's already-cached Spring ApplicationContext/DataSource never learns
+    // about, so the second integration test class fails with connection-refused once
+    // more than one subclass of this base exists. Starting once in a static
+    // initializer and never stopping (Ryuk reaps on JVM exit) avoids that entirely.
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Container
-    static final RabbitMQContainer RABBITMQ =
-        new RabbitMQContainer("rabbitmq:3-management-alpine");
+    static final RabbitMQContainer RABBITMQ = new RabbitMQContainer("rabbitmq:3-management-alpine");
 
-    @Container
-    static final GenericContainer<?> MINIO =
-        new GenericContainer<>("minio/minio:latest")
-            .withCommand("server /data")
-            .withExposedPorts(9000)
-            .withEnv("MINIO_ROOT_USER", "minioadmin")
-            .withEnv("MINIO_ROOT_PASSWORD", "minioadmin")
-            .waitingFor(Wait.forHttp("/minio/health/live").forPort(9000));
+    static final GenericContainer<?> MINIO = new GenericContainer<>("minio/minio:latest")
+        .withCommand("server /data")
+        .withExposedPorts(9000)
+        .withEnv("MINIO_ROOT_USER", "minioadmin")
+        .withEnv("MINIO_ROOT_PASSWORD", "minioadmin")
+        .waitingFor(Wait.forHttp("/minio/health/live").forPort(9000));
+
+    static {
+        POSTGRES.start();
+        RABBITMQ.start();
+        MINIO.start();
+    }
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
