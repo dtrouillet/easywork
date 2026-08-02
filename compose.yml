@@ -102,7 +102,9 @@ services:
       MINIO_BUCKET: easywork-documents
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: masterKey
-      TESSDATA_PATH: /usr/share/tessdata
+      # Matches the tesseract-ocr apt package's real install path on the
+      # runtime-ocr image's Ubuntu Jammy base — see backend/Dockerfile.
+      TESSDATA_PATH: /usr/share/tesseract-ocr/4.00/tessdata
       OCR_LANGUAGES: fra+eng
     ports:
       - "8080:8080"

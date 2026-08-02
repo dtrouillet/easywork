@@ -12,6 +12,7 @@ import {
   Trash2,
   RotateCcw,
   Trash,
+  RefreshCw,
 } from "lucide-react";
 import { documentsApi } from "@/lib/api/documents";
 import { formatBytes, formatDate } from "@/lib/utils";
@@ -48,6 +49,14 @@ export default function DocumentDetailPage() {
   const restore = useMutation({
     mutationFn: () => documentsApi(session!.accessToken).restore(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["document", id] }),
+  });
+
+  const retry = useMutation({
+    mutationFn: () => documentsApi(session!.accessToken).retry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["document", id] });
+    },
   });
 
   const permanentDelete = useMutation({
@@ -162,6 +171,15 @@ export default function DocumentDetailPage() {
                 <RotateCcw className="h-4 w-4" /> Restore
               </button>
             )}
+            {doc.status === "FAILED" && (
+              <button
+                onClick={() => retry.mutate()}
+                disabled={retry.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" /> Retry processing
+              </button>
+            )}
             {doc.status === "TRASH" && (
               <>
                 <button
@@ -211,6 +229,15 @@ export default function DocumentDetailPage() {
               </div>
             ))}
           </div>
+
+          {doc.status === "FAILED" && doc.lastIngestError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide mb-1 text-destructive">
+                Processing failed
+              </p>
+              <p className="text-sm text-destructive/90">{doc.lastIngestError}</p>
+            </div>
+          )}
 
           <div className="rounded-lg border border-border p-4">
             <p className="text-xs font-medium uppercase tracking-wide mb-3 text-muted-foreground">

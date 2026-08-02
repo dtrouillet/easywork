@@ -77,5 +77,8 @@ easywork:
     host: ${MEILISEARCH_HOST}
     api-key: ${MEILISEARCH_API_KEY}
   ingest:
-    tessdata-path: ${TESSDATA_PATH:/usr/share/tessdata}
+    # Default matches the tesseract-ocr apt package's real install path on the
+    # runtime-ocr image's Ubuntu Jammy base (backend/Dockerfile) — override via
+    # TESSDATA_PATH if deploying on a different base image/OS package layout.
+    tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
     ocr-languages: ${OCR_LANGUAGES:fra+eng}

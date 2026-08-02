@@ -1,5 +1,6 @@
 package fr.easywork.ingest.pipeline;
 
+import fr.easywork.document.DocumentDuplicateCheck;
 import fr.easywork.document.DocumentStorage;
 import fr.easywork.document.event.DocumentUploadedEvent;
 import fr.easywork.document.event.IngestCompletedEvent;
@@ -7,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -17,6 +19,7 @@ import java.util.HexFormat;
 public class IngestPipeline {
 
     private final DocumentStorage storageService;
+    private final DocumentDuplicateCheck duplicateCheck;
     private final ContentExtractor extractor;
     private final OcrProcessor ocrProcessor;
 
@@ -29,19 +32,26 @@ public class IngestPipeline {
 
             String contentHash = sha256(fileBytes);
 
-            ExtractionResult extraction = extractor.extract(
-                new java.io.ByteArrayInputStream(fileBytes));
+            // Duplicate detection before processing: skip extraction/OCR entirely for a
+            // file that already exists — DocumentService.onIngestCompleted() still runs
+            // the authoritative delete-and-reject flow once this event comes back.
+            if (duplicateCheck.existsDuplicate(contentHash, event.ownerId(), event.documentId())) {
+                return new IngestCompletedEvent(
+                    event.documentId(), contentHash, null, null, false, true, null);
+            }
+
+            ExtractionResult extraction = extractor.extract(new ByteArrayInputStream(fileBytes));
 
             String text = extraction.text();
             boolean ocrApplied = false;
 
             if (extraction.requiresOcr()) {
-                text = ocrProcessor.ocr(new java.io.ByteArrayInputStream(fileBytes));
+                text = ocrProcessor.ocr(fileBytes, event.mimeType());
                 ocrApplied = true;
             }
 
             return new IngestCompletedEvent(
-                event.documentId(), contentHash, text, null, ocrApplied, true, null);
+                event.documentId(), contentHash, text, extraction.pageCount(), ocrApplied, true, null);
 
         } catch (Exception e) {
             return new IngestCompletedEvent(

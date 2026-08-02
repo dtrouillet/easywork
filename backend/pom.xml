@@ -23,6 +23,12 @@
 		<meilisearch.version>0.21.0</meilisearch.version>
 		<tika.version>2.9.2</tika.version>
 		<tess4j.version>5.20.0</tess4j.version>
+		<!-- Must match tika-parent ${tika.version}'s own <pdfbox.version> property
+		     (currently 2.0.31) — tika-parser-pdf-module is compiled against PDFBox 2.0.x's
+		     PDDocument.load() API, removed in PDFBox 3.x. Check
+		     ~/.m2/repository/org/apache/tika/tika-parent/<version>/tika-parent-<version>.pom
+		     after bumping tika.version. -->
+		<pdfbox.version>2.0.31</pdfbox.version>
 		<jacoco.version>0.8.12</jacoco.version>
 		<jacoco.minimum.coverage>0.80</jacoco.minimum.coverage>
 		<lombok.version>1.18.46</lombok.version>
@@ -159,6 +165,31 @@
 			<groupId>net.sourceforge.tess4j</groupId>
 			<artifactId>tess4j</artifactId>
 			<version>${tess4j.version}</version>
+			<exclusions>
+				<!-- tess4j's own optional PDF-to-image utility (unused here — OcrProcessor
+				     renders pages itself) transitively pulls pdfbox-tools, which forces the
+				     whole org.apache.pdfbox:pdfbox family to its 3.x line. tika-parser-pdf-module
+				     (${tika.version}) is compiled against PDFBox 2.0.x's PDDocument.load() API,
+				     which was removed in PDFBox 3.x (moved to Loader.loadPDF()) — letting 3.x win
+				     dependency mediation breaks Tika's PDF text extraction with a
+				     NoSuchMethodError at runtime. Excluded so pdfbox stays on the 2.0.x line
+				     tika-parser-pdf-module actually expects. -->
+				<exclusion>
+					<groupId>org.apache.pdfbox</groupId>
+					<artifactId>pdfbox-tools</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<!-- OcrProcessor rasterizes PDF pages before handing them to Tesseract, via the
+		     same PDFBox 2.0.x line tika-parser-pdf-module (${tika.version}) is compiled
+		     against — see the tess4j exclusion above for why this must not be 3.x.
+		     Declared explicitly (not relied on transitively) so the version is visible
+		     and auditable; keep aligned with tika-parent's pdfbox.version when bumping
+		     tika.version (check `~/.m2/.../tika-parent/<version>/tika-parent-<version>.pom`). -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
 		</dependency>
 
 		<!-- ── API documentation ─────────────────────────────────── -->
@@ -275,6 +306,18 @@
 					<compilerArgs>
 						<arg>-Amapstruct.defaultComponentModel=spring</arg>
 					</compilerArgs>
+				</configuration>
+			</plugin>
+
+			<!-- PDFBox/AWT text rendering (ContentExtractorTest, OcrProcessorTest build
+			     fixture PDFs/images via java.awt.Graphics2D) touches AWT's font/graphics
+			     init path, which tries to load native X11 libs (libXrender) even off-screen
+			     unless headless mode is forced — CI/server environments have no X server. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>@{argLine} -Djava.awt.headless=true</argLine>
 				</configuration>
 			</plugin>
 

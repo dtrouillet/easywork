@@ -60,6 +60,12 @@ export default function DocumentsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"] }),
   });
 
+  const retry = useMutation({
+    mutationFn: (id: string) =>
+      documentsApi(session!.accessToken).retry(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"] }),
+  });
+
   const treeDocs = treeQuery.data?.content ?? [];
   const visibleDocs = view === "tags" ? (data?.content ?? []) : filterDocsByPath(treeDocs, activePath);
   const totalCount = view === "tags" ? data?.page.totalElements : visibleDocs.length;
@@ -139,6 +145,7 @@ export default function DocumentsPage() {
                 onTrash={(id) => trash.mutate(id)}
                 onArchive={(id) => archive.mutate(id)}
                 onRestore={(id) => restore.mutate(id)}
+                onRetry={(id) => retry.mutate(id)}
               />
             ))}
           </div>

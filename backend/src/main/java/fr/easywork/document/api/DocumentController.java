@@ -124,6 +124,15 @@ class DocumentController {
         documentService.restore(id, jwt.getSubject());
     }
 
+    @PostMapping("/{id}/retry")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Retry processing a document stuck in FAILED status")
+    @ApiResponse(responseCode = "404", description = "Document not found")
+    @ApiResponse(responseCode = "422", description = "Document is not in FAILED status")
+    void retry(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        documentService.retryIngest(id, jwt.getSubject());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Permanently delete document (GDPR erasure)")

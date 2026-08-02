@@ -12,6 +12,7 @@ function makeDoc(overrides: Partial<DocumentDto> = {}): DocumentDto {
     fileSize: 100,
     pageCount: null,
     ocrApplied: false,
+    lastIngestError: null,
     documentDate: "2026-03-15",
     tags: [],
     correspondent: { id: "corr-1", name: "EDF" },

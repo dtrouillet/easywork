@@ -54,6 +54,10 @@ public class Document {
     private Integer pageCount;
 
     @NotAudited
+    @Column(name = "last_ingest_error", length = 2000)
+    private String lastIngestError;
+
+    @NotAudited
     private LocalDate documentDate;
 
     @Enumerated(EnumType.STRING)
@@ -120,6 +124,7 @@ public class Document {
         this.extractedText = null;
         this.pageCount = null;
         this.documentDate = null;
+        this.lastIngestError = null;
         this.ownerId = "[supprimé]";
         this.tags = new HashSet<>();
         this.correspondent = null;
@@ -152,6 +157,9 @@ public class Document {
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+
+    public String getLastIngestError() { return lastIngestError; }
+    public void setLastIngestError(String lastIngestError) { this.lastIngestError = lastIngestError; }
 
     public LocalDate getDocumentDate() { return documentDate; }
     public void setDocumentDate(LocalDate documentDate) { this.documentDate = documentDate; }

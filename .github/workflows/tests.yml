@@ -51,6 +51,38 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # The ingest module's tests (OcrProcessorTest) exercise Tess4J against a real
+      # Tesseract/Leptonica install rather than mocking the OCR engine. Mirrors
+      # backend/Dockerfile's runtime-ocr + lept-build stages: apt's Ubuntu Leptonica
+      # (1.82.0) is missing pixAddMultipleBlackWhiteBorders, which tess4j 5.20.0's
+      # lept4j binding requires at class-init time — see docs/adr/0002 for details.
+      - name: Install Tesseract OCR + compatible Leptonica
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
+            build-essential wget libpng-dev libjpeg-turbo8-dev libtiff-dev \
+            zlib1g-dev libwebp-dev libopenjp2-7-dev libgif-dev
+
+          LEPTONICA_VERSION=1.87.0
+          LEPTONICA_SHA256=c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7
+          wget -q "https://github.com/DanBloomberg/leptonica/releases/download/${LEPTONICA_VERSION}/leptonica-${LEPTONICA_VERSION}.tar.gz"
+          echo "${LEPTONICA_SHA256}  leptonica-${LEPTONICA_VERSION}.tar.gz" | sha256sum -c -
+          tar xzf "leptonica-${LEPTONICA_VERSION}.tar.gz"
+          (cd "leptonica-${LEPTONICA_VERSION}" && ./configure --prefix=/opt/leptonica && make -j"$(nproc)" && make install)
+          sudo cp /opt/leptonica/lib/libleptonica.so /usr/local/lib/libleptonica.so
+
+          # apt's tesseract-ocr only ships a versioned libtesseract.so.N; JNA/tess4j
+          # loads the unversioned name.
+          TESS=$(ldconfig -p | grep -oP '/\S*libtesseract\.so\.\S*' | head -1)
+          sudo ln -sf "$TESS" "$(dirname "$TESS")/libtesseract.so"
+          sudo ldconfig
+
+          # The tessdata subdirectory name depends on the runner's Ubuntu/tesseract
+          # version (e.g. .../4.00/tessdata vs .../5/tessdata) — detect it instead
+          # of hardcoding, so this doesn't silently break on a runner image bump.
+          echo "TESSDATA_PATH=$(dirname "$(find /usr/share/tesseract-ocr -name 'eng.traineddata' | head -1)")" >> "$GITHUB_ENV"
+
       # Static analysis already runs in quality.yml — skipped here to avoid
       # re-executing it on every test run. Testcontainers needs Docker, which
       # GitHub-hosted ubuntu-latest runners provide out of the box.
