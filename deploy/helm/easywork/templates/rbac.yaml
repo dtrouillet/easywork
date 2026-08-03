@@ -1,0 +1,33 @@
+{{/*
+Namespace-scoped RBAC scaffold. Disabled by default: nothing in easywork calls
+the Kubernetes API today (no controller/operator behavior in the app itself).
+Enable and add rules via .Values.rbac.rules only when a concrete feature
+actually needs them — don't grant permissions the app doesn't use.
+*/}}
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "easywork.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.labels" . | nindent 4 }}
+rules:
+  {{- toYaml .Values.rbac.rules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "easywork.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "easywork.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "easywork.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

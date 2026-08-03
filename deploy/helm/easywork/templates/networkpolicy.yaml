@@ -1,0 +1,187 @@
+{{/*
+Default-deny NetworkPolicy set: every component gets its own ingress+egress
+deny-all baseline, then explicit allow rules for exactly the traffic paths the
+app needs. DNS egress (port 53) is always allowed regardless of component.
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . }}
+{{- range $component := list "doc-service" "ingest-worker" "search-service" "frontend" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easywork.fullname" $root }}-{{ $component }}-default-deny
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    # DNS is always needed regardless of what else this component talks to.
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+---
+# Ingress controller -> frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easywork.fullname" . }}-frontend-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressPodSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# Ingress controller -> doc-service (public REST API surface)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easywork.fullname" . }}-doc-service-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "doc-service") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "doc-service") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressPodSelector | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "easywork.selectorLabels" (dict "root" . "component" "frontend") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# frontend -> doc-service (server-side calls, e.g. SSR/NextAuth)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easywork.fullname" . }}-frontend-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "easywork.selectorLabels" (dict "root" . "component" "doc-service") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{- range $component := list "doc-service" "ingest-worker" "search-service" }}
+# {{ $component }} -> its own dependencies (Postgres/RabbitMQ/MinIO always;
+# Meilisearch only for search-service, since only that component's
+# SPRING_PROFILES_ACTIVE=search actually uses it — see backendCommonEnv's
+# comment on why Postgres/RabbitMQ/MinIO are still needed unconditionally by
+# every component regardless of role).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easywork.fullname" $root }}-{{ $component }}-deps-egress
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    {{/*
+    CloudPirates/meilisearch charts label their pods
+    app.kubernetes.io/name: <chart-name> + app.kubernetes.io/instance: <release
+    name> (no suffix — same instance label as our own pods, since they're
+    subcharts of the same release), so both labels are needed to disambiguate.
+    */}}
+    {{- if $root.Values.postgresql.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    {{- end }}
+    {{- if $root.Values.rabbitmq.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rabbitmq
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 5672
+    {{- end }}
+    {{- if $root.Values.minio.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 9000
+    {{- end }}
+    {{- if and (eq $component "search-service") $root.Values.meilisearch.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: meilisearch
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 7700
+    {{- end }}
+    {{- if or (not $root.Values.postgresql.enabled) (not $root.Values.rabbitmq.enabled) (not $root.Values.minio.enabled) }}
+    # One or more dependencies are external (not subchart-managed) — this
+    # policy can't scope egress to a pod selector for those, so allow
+    # unrestricted egress on their ports instead of blocking the app outright.
+    # Tighten with an ipBlock matching your external service's CIDR if needed.
+    - {}
+    {{- end }}
+---
+{{- end }}
+{{- end }}

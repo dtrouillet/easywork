@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "easywork.fullname" . }}-ingest-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "ingest-worker") | nindent 4 }}
+spec:
+  {{- if not .Values.ingestWorker.autoscaling.enabled }}
+  replicas: {{ .Values.ingestWorker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "ingest-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "easywork.componentLabels" (dict "root" . "component" "ingest-worker") | nindent 8 }}
+        {{- with .Values.ingestWorker.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.ingestWorker.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "easywork.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.ingestWorker.podSecurityContext | nindent 8 }}
+      containers:
+        - name: ingest-worker
+          # Must be built from backend/Dockerfile's `runtime-ocr` target — the
+          # only one with Tesseract/Leptonica installed.
+          image: {{ include "easywork.imageRef" (dict "root" $ "image" .Values.ingestWorker.image) }}
+          imagePullPolicy: {{ .Values.ingestWorker.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.ingestWorker.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.ingestWorker.springProfilesActive | quote }}
+            {{- include "easywork.backendCommonEnv" . | nindent 12 }}
+            {{- if .Values.ingestWorker.ocr.tessdataPath }}
+            - name: TESSDATA_PATH
+              value: {{ .Values.ingestWorker.ocr.tessdataPath | quote }}
+            {{- end }}
+            {{- if .Values.ingestWorker.ocr.ocrLanguages }}
+            - name: OCR_LANGUAGES
+              value: {{ .Values.ingestWorker.ocr.ocrLanguages | quote }}
+            {{- end }}
+            {{- with .Values.ingestWorker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.ingestWorker.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.ingestWorker.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ingestWorker.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.ingestWorker.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.ingestWorker.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ingestWorker.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.ingestWorker.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ingestWorker.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.ingestWorker.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.ingestWorker.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.ingestWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.ingestWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ingestWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ingestWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

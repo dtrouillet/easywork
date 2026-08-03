@@ -1,0 +1,18 @@
+{{- if .Values.docService.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "easywork.fullname" . }}-doc-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "doc-service") | nindent 4 }}
+spec:
+  type: {{ .Values.docService.service.type }}
+  ports:
+    - port: {{ .Values.docService.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "easywork.selectorLabels" (dict "root" . "component" "doc-service") | nindent 4 }}
+{{- end }}

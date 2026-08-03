@@ -1,0 +1,101 @@
+{{/*
+KNOWN GAP (ADR-0004, docs/adr/0004-cross-pod-event-delivery-via-amqp.md):
+DocumentReadyEvent, search-service's input, is still in-process-only delivery
+(@ApplicationModuleListener, not @Externalized). Deploying this Deployment as
+a genuinely separate pod from doc-service means search indexing silently
+never happens until that's fixed upstream in the app. This chart still
+supports deploying it separately per design goals — see also NOTES.txt,
+rendered on every install/upgrade.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "easywork.fullname" . }}-search-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "search-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.searchService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "search-service") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "easywork.componentLabels" (dict "root" . "component" "search-service") | nindent 8 }}
+        {{- with .Values.searchService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.searchService.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "easywork.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.searchService.podSecurityContext | nindent 8 }}
+      containers:
+        - name: search-service
+          # `runtime` target is enough — no OCR needed for the search module.
+          image: {{ include "easywork.imageRef" (dict "root" $ "image" .Values.searchService.image) }}
+          imagePullPolicy: {{ .Values.searchService.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.searchService.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.searchService.springProfilesActive | quote }}
+            {{- include "easywork.backendCommonEnv" . | nindent 12 }}
+            - name: MEILISEARCH_HOST
+              value: {{ include "easywork.meilisearchHost" . | quote }}
+            - name: MEILISEARCH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "easywork.secretName" (dict "root" . "domain" "meilisearch") }}
+                  key: MEILI_MASTER_KEY
+            {{- with .Values.searchService.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.searchService.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.searchService.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.searchService.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.searchService.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.searchService.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.searchService.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.searchService.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.searchService.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.searchService.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.searchService.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.searchService.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.searchService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.searchService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.searchService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,14 @@
+{{- if .Values.searchService.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "easywork.fullname" . }}-search-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "search-service") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.searchService.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "search-service") | nindent 6 }}
+{{- end }}
