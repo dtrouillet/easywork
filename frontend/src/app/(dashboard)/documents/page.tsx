@@ -8,24 +8,39 @@ import { documentsApi } from "@/lib/api/documents";
 import { DocumentCard } from "@/components/documents/document-card";
 import { BrowsePanel, type BrowseView } from "@/components/documents/browse-panel";
 import { filterDocsByPath } from "@/lib/document-tree";
+import { cn } from "@/lib/utils";
+import type { DocumentStatus } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
 const TREE_FETCH_SIZE = 1000;
+
+const LIFECYCLE_FILTERS: { status: DocumentStatus; label: string }[] = [
+  { status: "READY", label: "Active" },
+  { status: "ARCHIVED", label: "Archived" },
+  { status: "TRASH", label: "Trash" },
+];
 
 export default function DocumentsPage() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [view, setView] = useState<BrowseView>("tags");
+  const [lifecycle, setLifecycle] = useState<DocumentStatus>("READY");
   const [activeTagId, setActiveTagId] = useState<string | null>(null);
   const [activeCorrespondentId, setActiveCorrespondentId] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string[]>([]);
 
-  // Tags view: server-paginated, filtered by tag/correspondent.
+  function changeLifecycle(status: DocumentStatus) {
+    setLifecycle(status);
+    setPage(0);
+  }
+
+  // Tags view: server-paginated, filtered by tag/correspondent/lifecycle status.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["documents", page, activeTagId, activeCorrespondentId],
+    queryKey: ["documents", page, lifecycle, activeTagId, activeCorrespondentId],
     queryFn: () =>
       documentsApi(session!.accessToken).list(page, PAGE_SIZE, {
+        status: lifecycle,
         tagId: activeTagId ?? undefined,
         correspondentId: activeCorrespondentId ?? undefined,
       }),
@@ -36,8 +51,8 @@ export default function DocumentsPage() {
   // client-side by the selected path — a proper aggregation endpoint would
   // replace this once document volumes outgrow a single-page fetch.
   const treeQuery = useQuery({
-    queryKey: ["documents", "tree"],
-    queryFn: () => documentsApi(session!.accessToken).list(0, TREE_FETCH_SIZE),
+    queryKey: ["documents", "tree", lifecycle],
+    queryFn: () => documentsApi(session!.accessToken).list(0, TREE_FETCH_SIZE, { status: lifecycle }),
     enabled: !!session,
   });
 
@@ -94,6 +109,23 @@ export default function DocumentsPage() {
             {totalCount !== undefined && (
               <span className="text-sm text-muted-foreground">{totalCount} documents</span>
             )}
+          </div>
+
+          <div className="flex rounded-md p-0.5 text-sm bg-muted border border-border w-fit">
+            {LIFECYCLE_FILTERS.map(({ status, label }) => (
+              <button
+                key={status}
+                onClick={() => changeLifecycle(status)}
+                className={cn(
+                  "px-3 py-1.5 rounded-[5px] transition-colors",
+                  lifecycle === status
+                    ? "bg-background font-semibold shadow-sm"
+                    : "text-muted-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {view === "tree" && activePath.length > 0 && (

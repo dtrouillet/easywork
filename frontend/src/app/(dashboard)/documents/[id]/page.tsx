@@ -177,13 +177,22 @@ export default function DocumentDetailPage() {
               </>
             )}
             {doc.status === "ARCHIVED" && (
-              <button
-                onClick={() => restore.mutate()}
-                disabled={restore.isPending}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
-              >
-                <RotateCcw className="h-4 w-4" /> Restore
-              </button>
+              <>
+                <button
+                  onClick={() => restore.mutate()}
+                  disabled={restore.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4" /> Restore
+                </button>
+                <button
+                  onClick={() => trash.mutate()}
+                  disabled={trash.isPending}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" /> Move to trash
+                </button>
+              </>
             )}
             {doc.status === "FAILED" && (
               <button
