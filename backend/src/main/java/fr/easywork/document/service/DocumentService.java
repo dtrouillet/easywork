@@ -24,7 +24,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -176,8 +175,9 @@ public class DocumentService implements DocumentDuplicateCheck {
             .isPresent();
     }
 
+    // Invoked by IngestCompletedRabbitListener (document/consumer package) — see its
+    // javadoc for why this is AMQP-only rather than an @ApplicationModuleListener.
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    @ApplicationModuleListener
     public void onIngestCompleted(IngestCompletedEvent event) {
         Document doc = documentRepository.findById(event.documentId())
             .orElseThrow(() -> new DocumentNotFoundException(event.documentId()));
