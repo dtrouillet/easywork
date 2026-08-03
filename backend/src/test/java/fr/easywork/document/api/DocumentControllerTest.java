@@ -1,6 +1,7 @@
 package fr.easywork.document.api;
 
 import fr.easywork.document.domain.DocumentStatus;
+import fr.easywork.document.dto.DocumentClassificationSuggestionDto;
 import fr.easywork.document.dto.DocumentDto;
 import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.PageResponse;
@@ -136,9 +137,8 @@ class DocumentControllerTest {
         var jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn("user-sub");
         UUID id = UUID.randomUUID();
-        var expected = new DocumentDto(
-            id, "invoice.pdf", DocumentStatus.READY, "invoice.pdf",
-            "application/pdf", 7L, null, false, null, null, null, List.of(), null, null, null, null);
+        var expected = new DocumentClassificationSuggestionDto(
+            id, null, null, null, List.of(), null, null, null, null, null);
         when(documentService.reclassify(id, "user-sub")).thenReturn(expected);
 
         var result = controller.reclassify(id, jwt);

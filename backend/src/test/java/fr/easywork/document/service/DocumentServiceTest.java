@@ -2,6 +2,7 @@ package fr.easywork.document.service;
 
 import fr.easywork.document.domain.Document;
 import fr.easywork.document.domain.DocumentStatus;
+import fr.easywork.document.dto.DocumentClassificationSuggestionDto;
 import fr.easywork.document.dto.DocumentSearchCriteria;
 import fr.easywork.document.dto.DocumentUpdateRequest;
 import fr.easywork.document.event.DocumentDeletedEvent;
@@ -46,7 +47,8 @@ class DocumentServiceTest {
     @Mock DocumentTypeRepository documentTypeRepository;
     @Mock StorageService storageService;
     @Mock UploadValidator uploadValidator;
-    @Mock DocumentClassifier documentClassifier;
+    @Mock SuggestionService suggestionService;
+    @Mock LearningService learningService;
     @Mock DocumentMapper mapper;
     @Mock ApplicationEventPublisher eventPublisher;
 
@@ -136,6 +138,7 @@ class DocumentServiceTest {
 
         assertThat(doc.getTitle()).isEqualTo("New Title");
         verify(eventPublisher).publishEvent(any(DocumentReadyEvent.class));
+        verify(learningService).recordConfirmation(doc);
     }
 
     @Test
@@ -155,33 +158,16 @@ class DocumentServiceTest {
     // --- reclassify ---
 
     @Test
-    void reclassify_runsClassifierAndPublishesReindexEvent_whenReady() {
+    void reclassify_delegatesToSuggestionServiceAndReturnsItsResult() {
         UUID id = UUID.randomUUID();
-        Document doc = readyDocument(id, "user1");
-        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
-        when(documentRepository.save(any())).thenReturn(doc);
+        DocumentClassificationSuggestionDto dto =
+            new DocumentClassificationSuggestionDto(id, null, null, null, List.of(), null, null, null, null, null);
+        when(suggestionService.regenerateSuggestion(id, "user1")).thenReturn(dto);
 
-        documentService.reclassify(id, "user1");
+        DocumentClassificationSuggestionDto result = documentService.reclassify(id, "user1");
 
-        verify(documentClassifier).classify(doc);
-        verify(documentRepository).save(doc);
-        verify(eventPublisher).publishEvent(any(DocumentReadyEvent.class));
-    }
-
-    @Test
-    void reclassify_doesNotPublishEvent_whenNotReadyOrArchived() {
-        UUID id = UUID.randomUUID();
-        Document doc = new Document();
-        doc.setId(id);
-        doc.setOwnerId("user1");
-        doc.setStatus(DocumentStatus.RECEIVED);
-        when(documentRepository.findByIdAndOwnerId(id, "user1")).thenReturn(Optional.of(doc));
-        when(documentRepository.save(any())).thenReturn(doc);
-
-        documentService.reclassify(id, "user1");
-
-        verify(documentClassifier).classify(doc);
-        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(result).isSameAs(dto);
+        verify(suggestionService).regenerateSuggestion(id, "user1");
     }
 
     // --- onIngestCompleted ---
@@ -199,11 +185,12 @@ class DocumentServiceTest {
         when(documentRepository.findByContentHashAndOwnerId("hash", "user1")).thenReturn(Optional.empty());
         when(documentRepository.save(any())).thenReturn(doc);
 
-        documentService.onIngestCompleted(new IngestCompletedEvent(id, "hash", "text", 2, false, true, null));
+        documentService.onIngestCompleted(
+            new IngestCompletedEvent(id, "hash", "text", 2, false, true, null, List.of()));
 
         verify(documentRepository).save(argThat(d -> d.getStatus() == DocumentStatus.READY));
         verify(eventPublisher).publishEvent(any(DocumentReadyEvent.class));
-        verify(documentClassifier).classify(doc);
+        verify(suggestionService).generateSuggestion(doc, List.of());
     }
 
     @Test
@@ -227,11 +214,12 @@ class DocumentServiceTest {
         when(documentRepository.findByContentHashAndOwnerId("hash", "user1"))
             .thenReturn(Optional.of(existing));
 
-        documentService.onIngestCompleted(new IngestCompletedEvent(id, "hash", "text", 1, false, true, null));
+        documentService.onIngestCompleted(
+            new IngestCompletedEvent(id, "hash", "text", 1, false, true, null, List.of()));
 
         verify(storageService).delete("key");
         verify(documentRepository).delete(doc);
-        verify(documentClassifier, never()).classify(any());
+        verify(suggestionService, never()).generateSuggestion(any(), any());
         verify(eventPublisher, never()).publishEvent(any(DocumentReadyEvent.class));
     }
 
@@ -247,11 +235,11 @@ class DocumentServiceTest {
         when(documentRepository.save(any())).thenReturn(doc);
 
         documentService.onIngestCompleted(
-            new IngestCompletedEvent(id, null, null, null, false, false, "Tesseract crashed"));
+            new IngestCompletedEvent(id, null, null, null, false, false, "Tesseract crashed", List.of()));
 
         assertThat(doc.getStatus()).isEqualTo(DocumentStatus.FAILED);
         assertThat(doc.getLastIngestError()).isEqualTo("Tesseract crashed");
-        verify(documentClassifier, never()).classify(any());
+        verify(suggestionService, never()).generateSuggestion(any(), any());
         verify(eventPublisher, never()).publishEvent(any(DocumentReadyEvent.class));
     }
 

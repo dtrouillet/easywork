@@ -2,6 +2,7 @@ package fr.easywork.document.event;
 
 import org.springframework.modulith.events.Externalized;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -16,5 +17,6 @@ public record IngestCompletedEvent(
     Integer pageCount,
     boolean ocrApplied,
     boolean success,
-    String errorMessage
+    String errorMessage,
+    List<ExtractedEntityPayload> extractedEntities
 ) {}

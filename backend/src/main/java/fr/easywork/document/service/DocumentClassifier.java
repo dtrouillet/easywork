@@ -13,12 +13,16 @@ import org.springframework.stereotype.Component;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
  * Heuristic auto-classification: matches the document's extracted text against
- * existing correspondent/tag/document-type names. Only fills fields that are
- * still unset — never overwrites a manual assignment.
+ * existing correspondent/tag/document-type names. Never mutates the document —
+ * returns a {@link ClassificationSuggestionResult} for {@code SuggestionService}
+ * to turn into a reviewable suggestion (ADR 0003). Only suggests fields that
+ * are still unset on the document — never proposes replacing a manual
+ * assignment that's already there.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,29 +32,30 @@ class DocumentClassifier {
     private final TagRepository tagRepository;
     private final DocumentTypeRepository documentTypeRepository;
 
-    void classify(Document doc) {
+    ClassificationSuggestionResult classify(Document doc) {
         String text = doc.getExtractedText();
         if (text == null || text.isBlank()) {
-            return;
+            return ClassificationSuggestionResult.empty();
         }
         String lowerText = text.toLowerCase(Locale.ROOT);
 
-        classifyCorrespondent(doc, lowerText);
-        classifyTags(doc, lowerText);
-        classifyDocumentType(doc, lowerText);
+        Correspondent correspondent = classifyCorrespondent(doc, lowerText);
+        Set<Tag> tags = classifyTags(doc, lowerText);
+        DocumentType documentType = classifyDocumentType(doc, lowerText);
+
+        return new ClassificationSuggestionResult(correspondent, documentType, null, tags);
     }
 
-    private void classifyCorrespondent(Document doc, String lowerText) {
+    private Correspondent classifyCorrespondent(Document doc, String lowerText) {
         if (doc.getCorrespondent() != null) {
-            return;
+            return null;
         }
-        findFirstMatch(correspondentRepository.findAll(), Correspondent::getName, lowerText)
-            .ifPresent(doc::setCorrespondent);
+        return findFirstMatch(correspondentRepository.findAll(), Correspondent::getName, lowerText).orElse(null);
     }
 
-    private void classifyTags(Document doc, String lowerText) {
+    private Set<Tag> classifyTags(Document doc, String lowerText) {
         if (!doc.getTags().isEmpty()) {
-            return;
+            return Set.of();
         }
         var matched = new HashSet<Tag>();
         for (Tag tag : tagRepository.findAll()) {
@@ -58,15 +63,14 @@ class DocumentClassifier {
                 matched.add(tag);
             }
         }
-        doc.setTags(matched);
+        return matched;
     }
 
-    private void classifyDocumentType(Document doc, String lowerText) {
+    private DocumentType classifyDocumentType(Document doc, String lowerText) {
         if (doc.getDocumentType() != null) {
-            return;
+            return null;
         }
-        findFirstMatch(documentTypeRepository.findAll(), DocumentType::getName, lowerText)
-            .ifPresent(doc::setDocumentType);
+        return findFirstMatch(documentTypeRepository.findAll(), DocumentType::getName, lowerText).orElse(null);
     }
 
     private static <T> Optional<T> findFirstMatch(

@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +29,7 @@ class IngestEventConsumerTest {
     void onDocumentUploaded_delegatesToPipeline_andRepublishesResult() {
         UUID docId = UUID.randomUUID();
         var uploaded = new DocumentUploadedEvent(docId, "key", "application/pdf", "user1");
-        var completed = new IngestCompletedEvent(docId, "hash", "text", 1, false, true, null);
+        var completed = new IngestCompletedEvent(docId, "hash", "text", 1, false, true, null, List.of());
         when(pipeline.process(uploaded)).thenReturn(completed);
 
         consumer.onDocumentUploaded(uploaded);
@@ -41,7 +42,7 @@ class IngestEventConsumerTest {
     void onDocumentUploaded_republishesFailureEvent_whenPipelineFails() {
         UUID docId = UUID.randomUUID();
         var uploaded = new DocumentUploadedEvent(docId, "key", "application/pdf", "user1");
-        var failed = new IngestCompletedEvent(docId, null, null, null, false, false, "boom");
+        var failed = new IngestCompletedEvent(docId, null, null, null, false, false, "boom", List.of());
         when(pipeline.process(uploaded)).thenReturn(failed);
 
         consumer.onDocumentUploaded(uploaded);

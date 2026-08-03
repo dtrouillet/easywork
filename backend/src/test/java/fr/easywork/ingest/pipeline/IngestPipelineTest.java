@@ -3,6 +3,8 @@ package fr.easywork.ingest.pipeline;
 import fr.easywork.document.DocumentDuplicateCheck;
 import fr.easywork.document.DocumentStorage;
 import fr.easywork.document.event.DocumentUploadedEvent;
+import fr.easywork.document.event.ExtractedEntityPayload;
+import fr.easywork.document.event.ExtractedEntityType;
 import fr.easywork.document.event.IngestCompletedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,12 +33,13 @@ class IngestPipelineTest {
     @Mock DocumentDuplicateCheck duplicateCheck;
     @Mock ContentExtractor extractor;
     @Mock OcrProcessor ocrProcessor;
+    @Mock EntityExtractor entityExtractor;
 
     private IngestPipeline pipeline;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        pipeline = new IngestPipeline(storageService, duplicateCheck, extractor, ocrProcessor);
+        pipeline = new IngestPipeline(storageService, duplicateCheck, extractor, ocrProcessor, entityExtractor);
     }
 
     private static final byte[] FILE_BYTES = "hello world".getBytes(StandardCharsets.UTF_8);
@@ -63,6 +67,8 @@ class IngestPipelineTest {
         when(storageService.download("key")).thenReturn(new ByteArrayInputStream(FILE_BYTES));
         when(duplicateCheck.existsDuplicate(anyString(), anyString(), any())).thenReturn(false);
         when(extractor.extract(any())).thenReturn(new ExtractionResult("hello world", "text/plain", false, 1));
+        var entities = List.of(new ExtractedEntityPayload(ExtractedEntityType.AMOUNT, "12€", "12"));
+        when(entityExtractor.extract("hello world")).thenReturn(entities);
 
         IngestCompletedEvent result = pipeline.process(event);
 
@@ -70,6 +76,7 @@ class IngestPipelineTest {
         assertThat(result.extractedText()).isEqualTo("hello world");
         assertThat(result.ocrApplied()).isFalse();
         assertThat(result.pageCount()).isEqualTo(1);
+        assertThat(result.extractedEntities()).isEqualTo(entities);
         verify(ocrProcessor, never()).ocr(any(), anyString());
     }
 
