@@ -42,6 +42,11 @@ easywork:
   ingest:
     tessdata-path: /usr/share/tessdata
     ocr-languages: fra+eng
+  rabbit:
+    document-uploaded-exchange: easywork.document.uploaded
+    document-uploaded-queue: easywork.document.uploaded.ingest
+    ingest-completed-exchange: easywork.ingest.completed
+    ingest-completed-queue: easywork.ingest.completed.document
 
 logging:
   level:

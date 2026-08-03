@@ -88,3 +88,11 @@ easywork:
     # TESSDATA_PATH if deploying on a different base image/OS package layout.
     tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
     ocr-languages: ${OCR_LANGUAGES:fra+eng}
+  rabbit:
+    # Exchange names must match the @Externalized(...) targets on DocumentUploadedEvent
+    # and IngestCompletedEvent (document/event package) — Spring Modulith publishes to
+    # these by name, it doesn't derive them from this config.
+    document-uploaded-exchange: easywork.document.uploaded
+    document-uploaded-queue: easywork.document.uploaded.ingest
+    ingest-completed-exchange: easywork.ingest.completed
+    ingest-completed-queue: easywork.ingest.completed.document
