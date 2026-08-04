@@ -7,8 +7,13 @@ description: >-
 type: application
 # Chart version — bumped independently of the application release.
 version: 0.1.0
-# App version — tracks the backend/frontend release actually deployed.
-appVersion: "0.1.0"
+# App version — the default image tag every component falls back to when its
+# own `image.tag`/`image.digest` is unset (see _helpers.tpl's
+# easywork.imageRef). Must match an actual tag published by
+# .github/workflows/release.yml (i.e. a real `vX.Y.Z` git tag) — bump this by
+# hand every time a new release tag is pushed, or `helm install` with no
+# explicit image override will try to pull a tag that doesn't exist.
+appVersion: "v0.0.1"
 kubeVersion: ">=1.26.0-0"
 home: https://github.com/dtrouillet/easywork
 sources:

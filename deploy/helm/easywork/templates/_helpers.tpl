@@ -176,9 +176,13 @@ gets this optimization — the frontend has no equivalent split (see auth.ts).
 {{/*
 Full image reference for one of our own components. Prefers `.digest` (pin by
 digest, per CLAUDE.md's "never latest" rule) over `.tag`, falling back to the
-chart's own appVersion if neither is set. `global.imageRegistry` overrides the
-per-component registry when set (single place to redirect every image through
-a private mirror/pull-through cache).
+chart's own appVersion (plus `.image.tagSuffix` if set — e.g. ingest-worker's
+"-ocr", since backend/Dockerfile's runtime vs runtime-ocr targets are
+published under the same repository with different tag suffixes by
+.github/workflows/release.yml, not different repositories) if neither `.tag`
+nor `.digest` is set. `global.imageRegistry` overrides the per-component
+registry when set (single place to redirect every image through a private
+mirror/pull-through cache).
 Call as: include "easywork.imageRef" (dict "root" $ "image" .Values.docService.image)
 */}}
 {{- define "easywork.imageRef" -}}
@@ -186,7 +190,7 @@ Call as: include "easywork.imageRef" (dict "root" $ "image" .Values.docService.i
 {{- if .image.digest -}}
 {{- printf "%s/%s@%s" $registry .image.repository .image.digest -}}
 {{- else -}}
-{{- printf "%s/%s:%s" $registry .image.repository (.image.tag | default .root.Chart.AppVersion) -}}
+{{- printf "%s/%s:%s" $registry .image.repository (.image.tag | default (printf "%s%s" .root.Chart.AppVersion (.image.tagSuffix | default ""))) -}}
 {{- end -}}
 {{- end -}}
 

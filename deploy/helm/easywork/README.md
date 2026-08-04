@@ -1,6 +1,6 @@
 # easywork
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.0.1](https://img.shields.io/badge/AppVersion-v0.0.1-informational?style=flat-square)
 
 easywork — enterprise document management system (DMS). Deploys doc-service, ingest-worker, search-service and the frontend as independent Deployments, plus optional Postgres/RabbitMQ/MinIO/Meilisearch/Keycloak dependencies.
 
@@ -302,6 +302,7 @@ overlay files layered on top with `-f` as shown above.
 | ingestWorker.image.registry | string | `"ghcr.io"` |  |
 | ingestWorker.image.repository | string | `"dtrouillet/easywork-backend"` |  |
 | ingestWorker.image.tag | string | `""` |  |
+| ingestWorker.image.tagSuffix | string | `"-ocr"` |  |
 | ingestWorker.nodeSelector | object | `{}` |  |
 | ingestWorker.ocr.ocrLanguages | string | `""` |  |
 | ingestWorker.ocr.tessdataPath | string | `""` |  |

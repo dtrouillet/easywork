@@ -198,6 +198,10 @@ ingestWorker:
     # target — the only one with Tesseract/Leptonica installed.
     repository: dtrouillet/easywork-backend
     tag: ""
+    # Appended to Chart.yaml's appVersion when `tag` is unset — do NOT clear
+    # this without also setting `tag` explicitly, or ingest-worker silently
+    # falls back to doc-service's non-OCR image and OCR breaks at runtime.
+    tagSuffix: "-ocr"
     digest: ""
     pullPolicy: IfNotPresent
   springProfilesActive: "ingest"
