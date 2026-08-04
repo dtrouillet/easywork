@@ -107,8 +107,10 @@ cors:
 # keycloakIssuer are required when keycloak.enabled: false; auto-generated /
 # auto-derived when true (see templates/secret.yaml and _helpers.tpl).
 app:
-  # Required (via Secret) — NextAuth session-signing secret.
-  # -- NextAuth session-signing secret (required).
+  # Auto-generated and kept stable across `helm upgrade` if left blank —
+  # regenerating it invalidates every active session, so don't clear an
+  # already-deployed value casually.
+  # -- NextAuth session-signing secret (auto-generated if left blank).
   nextAuthSecret: ""
   # -- OAuth client ID registered in your IdP (or auto-provisioned when
   # keycloak.enabled: true).
@@ -437,10 +439,15 @@ postgresql:
   auth:
     username: easywork
     database: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is
-    # set — rendered into the easywork-postgres-auth Secret by
+    # Auto-generated and kept stable across `helm upgrade` if left blank
+    # (unless externalSecrets.enabled or secrets.existingSecret is set) —
+    # rendered into the easywork-postgres-auth Secret by
     # templates/secret.yaml, then referenced here via existingSecret so the
-    # subchart and our own Deployments read the exact same value.
+    # subchart and our own Deployments read the exact same value. Set this
+    # explicitly only if you need a specific value (e.g. restoring a DB
+    # dump) — regenerating it on every `helm upgrade` desyncs the Secret
+    # from the already-initialized database and breaks authentication.
+    # -- Postgres password (auto-generated if left blank).
     password: ""
     existingSecret: "easywork-postgres-auth"
   image:
@@ -471,7 +478,9 @@ rabbitmq:
   fullnameOverride: "easywork-rabbitmq"
   auth:
     username: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- RabbitMQ password (auto-generated if left blank).
     password: ""
     existingSecret: "easywork-rabbitmq-auth"
   image:
@@ -499,7 +508,9 @@ minio:
   fullnameOverride: "easywork-minio"
   auth:
     rootUser: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- MinIO root password (auto-generated if left blank).
     rootPassword: ""
     existingSecret: "easywork-minio-auth"
   image:
@@ -531,7 +542,9 @@ meilisearch:
   enabled: true
   fullnameOverride: "easywork-meilisearch"
   auth:
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- Meilisearch master key (auto-generated if left blank).
     masterKey: ""
     existingMasterKeySecret: "easywork-meilisearch-auth"
   environment:

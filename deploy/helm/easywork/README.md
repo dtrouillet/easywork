@@ -28,9 +28,15 @@ for the optional bundled Keycloak).
 
 `values-family.yaml` sets single-replica sizing and `keycloak.enabled: true`,
 so this is enough for a fully working install with nothing external to stand
-up first. You still need to provide a few install-specific values: real
-hostnames, and the credentials this chart deliberately never defaults (see
-"Secrets" below).
+up first. You only need to provide install-specific values: real hostnames.
+Every credential (Postgres/RabbitMQ/MinIO/Meilisearch passwords, NextAuth
+secret, Keycloak admin/DB/OAuth client secrets) is auto-generated for you —
+see "Secrets" below for why, and **never pass a freshly-generated password on
+every command** the way earlier versions of this doc did: re-running
+`--set postgresql.auth.password="$(openssl rand ...)"` on every `helm
+install`/`upgrade` desyncs the Secret from what the already-running database
+actually has, breaking authentication. Leave these fields blank and let the
+chart generate-and-persist them once.
 
 ```bash
 helm dependency update deploy/helm/easywork
@@ -64,18 +70,12 @@ EOF
 helm install easywork deploy/helm/easywork \
   --namespace easywork --create-namespace \
   -f deploy/helm/easywork/values-family.yaml \
-  -f my-family-values.yaml \
-  --set-string postgresql.auth.password="$(openssl rand -base64 24)" \
-  --set-string rabbitmq.auth.password="$(openssl rand -base64 24)" \
-  --set-string minio.auth.rootPassword="$(openssl rand -base64 24)" \
-  --set-string meilisearch.auth.masterKey="$(openssl rand -base64 24)" \
-  --set-string app.nextAuthSecret="$(openssl rand -base64 32)"
+  -f my-family-values.yaml
 ```
 
-`app.keycloakClientSecret`, `oauth2.jwtIssuerUri` and `app.keycloakIssuer` are
-**not** set above — with `keycloak.enabled: true` they're auto-generated /
-auto-derived (see `templates/secret.yaml` and `_helpers.tpl`'s
-`easywork.oauthIssuerUri`/`oauthJwkSetUri`).
+Nothing else needs to be set: `app.keycloakClientSecret`, `oauth2.jwtIssuerUri`
+and `app.keycloakIssuer` are auto-derived (`keycloak.enabled: true`), and
+every password above is auto-generated (see `templates/secret.yaml`).
 
 After install, follow the `NOTES.txt` output: it prints the Keycloak Admin
 Console URL and the `kubectl` command to retrieve the auto-generated admin
@@ -92,7 +92,9 @@ then fails.
 ## Quick start — SME tier (bring your own IdP)
 
 `values-sme.yaml` adds HA sizing, HPA, and PodDisruptionBudgets, and leaves
-`keycloak.enabled: false` — point it at your organization's existing IdP:
+`keycloak.enabled: false` — point it at your organization's existing IdP.
+Infra passwords (Postgres/RabbitMQ/MinIO/Meilisearch/NextAuth) are still
+auto-generated if left unset, exactly as in the family tier:
 
 ```bash
 helm dependency update deploy/helm/easywork
@@ -106,32 +108,37 @@ helm install easywork deploy/helm/easywork \
   --set cors.allowedOrigins=https://easywork.example.com \
   --set oauth2.jwtIssuerUri=https://your-idp.example.com/realms/easywork \
   --set app.keycloakIssuer=https://your-idp.example.com/realms/easywork \
-  --set app.keycloakClientSecret="<your-oauth-client-secret>" \
-  --set-string postgresql.auth.password="$(openssl rand -base64 24)" \
-  --set-string rabbitmq.auth.password="$(openssl rand -base64 24)" \
-  --set-string minio.auth.rootPassword="$(openssl rand -base64 24)" \
-  --set-string meilisearch.auth.masterKey="$(openssl rand -base64 24)" \
-  --set-string app.nextAuthSecret="$(openssl rand -base64 32)"
+  --set app.keycloakClientSecret="<your-oauth-client-secret>"
 ```
 
 For a real production rollout, prefer `externalSecrets.enabled: true` (needs
 the [external-secrets](https://external-secrets.io/) operator) or
-`secrets.existingSecret` over passing raw passwords on the command line — see
-"Secrets" below.
+`secrets.existingSecret` over letting this chart generate and store
+credentials for you — see "Secrets" below.
 
 ## Secrets
 
 Every credential is either **required** (fails `helm install` loudly if
-missing — never a silent default) or **auto-generated** and kept stable
-across `helm upgrade`:
+missing — never a silent default) or **auto-generated on first install and
+kept stable across every subsequent `helm upgrade`** (looked up from the
+existing Secret and reused, never re-randomized):
 
 | Value | Family tier (`keycloak.enabled: true`) | SME tier (`keycloak.enabled: false`) |
 |---|---|---|
-| `postgresql.auth.password`, `rabbitmq.auth.password`, `minio.auth.rootPassword`, `meilisearch.auth.masterKey` | Required | Required |
-| `app.nextAuthSecret` | Required | Required |
+| `postgresql.auth.password`, `rabbitmq.auth.password`, `minio.auth.rootPassword`, `meilisearch.auth.masterKey` | Auto-generated | Auto-generated |
+| `app.nextAuthSecret` | Auto-generated | Auto-generated |
 | `app.keycloakClientSecret` | Auto-generated | Required |
 | `oauth2.jwtIssuerUri`, `app.keycloakIssuer` | Auto-derived from the bundled instance | Required |
 | Keycloak admin password, embedded DB password | Auto-generated (only when `keycloak.enabled: true`) | N/A |
+
+⚠️ **Never pass a freshly-random value to any of the auto-generated fields on
+every `helm install`/`upgrade` invocation** (e.g.
+`--set postgresql.auth.password="$(openssl rand ...)"`) — Postgres/RabbitMQ
+only apply that password at first boot, so a new random value on a later
+upgrade desyncs the Secret from what the running database actually has and
+breaks authentication. Leave the field blank (the default) and the chart
+handles stability for you; only set it explicitly if you need to pin a
+specific value (e.g. restoring a dump created with a known password).
 
 Three escape hatches, in order of how much they take over:
 - `secrets.existingSecret` — bring your own single Secret with every key the
@@ -173,7 +180,7 @@ overlay files layered on top with `-f` as shown above.
 | app.keycloakClientId | string | `"easywork"` | OAuth client ID registered in your IdP (or auto-provisioned when keycloak.enabled: true). |
 | app.keycloakClientSecret | string | `""` | OAuth client secret (required unless keycloak.enabled: true, which auto-generates it). |
 | app.keycloakIssuer | string | `""` | OIDC issuer URI for NextAuth (required unless keycloak.enabled: true). |
-| app.nextAuthSecret | string | `""` | NextAuth session-signing secret (required). |
+| app.nextAuthSecret | string | `""` | NextAuth session-signing secret (auto-generated if left blank). |
 | cors.allowedOrigins | string | `""` | Comma-separated list of origins allowed to call the backend. |
 | docService.affinity | object | `{}` |  |
 | docService.autoscaling.enabled | bool | `false` |  |
@@ -380,7 +387,7 @@ overlay files layered on top with `-f` as shown above.
 | keycloakRealm.displayName | string | `"easywork"` |  |
 | keycloakRealm.name | string | `"easywork"` |  |
 | meilisearch.auth.existingMasterKeySecret | string | `"easywork-meilisearch-auth"` |  |
-| meilisearch.auth.masterKey | string | `""` |  |
+| meilisearch.auth.masterKey | string | `""` | Meilisearch master key (auto-generated if left blank). |
 | meilisearch.enabled | bool | `true` | Bundle a Meilisearch instance. |
 | meilisearch.environment.MEILI_ENV | string | `"production"` |  |
 | meilisearch.fullnameOverride | string | `"easywork-meilisearch"` |  |
@@ -391,7 +398,7 @@ overlay files layered on top with `-f` as shown above.
 | meilisearch.resources.requests.cpu | string | `"250m"` |  |
 | meilisearch.resources.requests.memory | string | `"512Mi"` |  |
 | minio.auth.existingSecret | string | `"easywork-minio-auth"` |  |
-| minio.auth.rootPassword | string | `""` |  |
+| minio.auth.rootPassword | string | `""` | MinIO root password (auto-generated if left blank). |
 | minio.auth.rootUser | string | `"easywork"` |  |
 | minio.defaultBuckets | string | `"easywork-documents"` |  |
 | minio.enabled | bool | `true` | Bundle a MinIO instance for document storage. |
@@ -409,7 +416,7 @@ overlay files layered on top with `-f` as shown above.
 | oauth2.jwtJwkSetUri | string | `""` | In-cluster JWK-set URL override (optional, auto-derived when keycloak.enabled: true). |
 | postgresql.auth.database | string | `"easywork"` |  |
 | postgresql.auth.existingSecret | string | `"easywork-postgres-auth"` |  |
-| postgresql.auth.password | string | `""` |  |
+| postgresql.auth.password | string | `""` | Postgres password (auto-generated if left blank). |
 | postgresql.auth.username | string | `"easywork"` |  |
 | postgresql.enabled | bool | `true` | Bundle a Postgres instance for the app's own database. |
 | postgresql.fullnameOverride | string | `"easywork-postgresql"` |  |
@@ -419,7 +426,7 @@ overlay files layered on top with `-f` as shown above.
 | postgresql.persistence.size | string | `"20Gi"` |  |
 | postgresql.replication.enabled | bool | `false` |  |
 | rabbitmq.auth.existingSecret | string | `"easywork-rabbitmq-auth"` |  |
-| rabbitmq.auth.password | string | `""` |  |
+| rabbitmq.auth.password | string | `""` | RabbitMQ password (auto-generated if left blank). |
 | rabbitmq.auth.username | string | `"easywork"` |  |
 | rabbitmq.enabled | bool | `true` | Bundle a RabbitMQ instance. |
 | rabbitmq.fullnameOverride | string | `"easywork-rabbitmq"` |  |
