@@ -11,5 +11,8 @@ dependencies:
 - name: meilisearch
   repository: https://meilisearch.github.io/meilisearch-kubernetes
   version: 0.36.0
-digest: sha256:944571758eadcfd63a9c9299166e294e20b88790b246fa82c3b53029cb63c3db
-generated: "2026-08-03T15:21:19.109370749+02:00"
+- name: keycloak
+  repository: oci://registry-1.docker.io/cloudpirates
+  version: 0.21.19
+digest: sha256:06d5a3183c3489666f1243b8e5bdacf210853b3702c134d01d9a56a9acc52bf9
+generated: "2026-08-04T13:54:55.428271543+02:00"

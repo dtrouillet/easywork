@@ -5,6 +5,8 @@
 # yaml-language-server: $schema=values.schema.json
 
 global:
+  # -- Overrides every component's own image registry (self and dependencies)
+  # in one place — point this at a private mirror/pull-through cache.
   imageRegistry: ""
   imagePullSecrets: []
   commonLabels: {}
@@ -32,6 +34,7 @@ networkPolicy:
   # traffic paths the app actually needs (ingress-controller -> frontend/doc-service,
   # frontend -> doc-service, backend components -> their own dependencies, DNS
   # egress always). See templates/networkpolicy.yaml.
+  # -- Enable default-deny NetworkPolicies with explicit allow rules.
   enabled: true
   # Selectors identifying your ingress controller's pods, so the policy can
   # scope the external-facing allow rule instead of accepting from anywhere.
@@ -47,6 +50,8 @@ secrets:
   # component instead reads from a Secret you created yourself with this name
   # (must contain all the keys the chart would otherwise generate — see
   # templates/secret.yaml for the exact key names).
+  # -- Name of a Secret you manage yourself instead of letting the chart
+  # generate one. Skips templates/secret.yaml entirely when set.
   existingSecret: ""
 
 externalSecrets:
@@ -55,6 +60,8 @@ externalSecrets:
   # same target Secret names either way, so nothing else in the chart needs to
   # know which one actually produced them. Requires the external-secrets
   # operator and the referenced store to already exist in the cluster.
+  # -- Source every credential from an external-secrets.io store instead of
+  # generating plain Kubernetes Secrets.
   enabled: false
   backend:
     kind: ClusterSecretStore # or SecretStore
@@ -68,31 +75,55 @@ externalSecrets:
     minio: easywork/minio
     meilisearch: easywork/meilisearch
     app: easywork/app
+    # Only consumed when keycloak.enabled: true (see external-secret.yaml) —
+    # store the ENTIRE pre-built realm.json as one property (suggested name
+    # "realmJson") yourself; its client secret must match whatever you also
+    # store under the "app" path's keycloakClientSecret property.
+    keycloak: easywork/keycloak
 
-# ── Auth / CORS shared by every backend component ──────────────────────────
+# ── Auth / CORS shared by every backend component ───────────────────────────
+# Required when keycloak.enabled: false (bring-your-own IdP) — auto-derived
+# from the bundled Keycloak instance via _helpers.tpl's easywork.oauthIssuerUri
+# / easywork.oauthJwkSetUri when keycloak.enabled: true.
 oauth2:
   # Required. The OIDC issuer URI baked into JWTs your identity provider issues
   # (Keycloak realm URL, browser-facing).
+  # -- OIDC issuer URI (required unless keycloak.enabled: true).
   jwtIssuerUri: ""
   # Optional. Only needed when the issuer URL above isn't reachable from
   # inside the cluster (e.g. it's a public ingress hostname) — point this at
   # the identity provider's in-cluster JWK set endpoint instead.
+  # -- In-cluster JWK-set URL override (optional, auto-derived when
+  # keycloak.enabled: true).
   jwtJwkSetUri: ""
 
 cors:
   # Required. Comma-separated list of origins allowed to call the backend
   # (typically the frontend's public URL).
+  # -- Comma-separated list of origins allowed to call the backend.
   allowedOrigins: ""
 
-# Frontend/NextAuth + Keycloak client credentials.
+# Frontend/NextAuth + Keycloak client credentials. keycloakClientSecret and
+# keycloakIssuer are required when keycloak.enabled: false; auto-generated /
+# auto-derived when true (see templates/secret.yaml and _helpers.tpl).
 app:
-  # Required (via Secret) — NextAuth session-signing secret.
+  # Auto-generated and kept stable across `helm upgrade` if left blank —
+  # regenerating it invalidates every active session, so don't clear an
+  # already-deployed value casually.
+  # -- NextAuth session-signing secret (auto-generated if left blank).
   nextAuthSecret: ""
+  # -- OAuth client ID registered in your IdP (or auto-provisioned when
+  # keycloak.enabled: true).
   keycloakClientId: "easywork"
-  # Required (via Secret).
+  # Required (via Secret) unless keycloak.enabled: true, in which case
+  # templates/secret.yaml auto-generates it and imports a matching realm
+  # client — never hardcoded.
+  # -- OAuth client secret (required unless keycloak.enabled: true, which
+  # auto-generates it).
   keycloakClientSecret: ""
   # Required — same value as oauth2.jwtIssuerUri in practice, kept separate
   # since NextAuth and the backend resource server read it independently.
+  # -- OIDC issuer URI for NextAuth (required unless keycloak.enabled: true).
   keycloakIssuer: ""
 
 # ── doc-service — always-active document module, no SPRING_PROFILES_ACTIVE ─
@@ -169,6 +200,10 @@ ingestWorker:
     # target — the only one with Tesseract/Leptonica installed.
     repository: dtrouillet/easywork-backend
     tag: ""
+    # Appended to Chart.yaml's appVersion when `tag` is unset — do NOT clear
+    # this without also setting `tag` explicitly, or ingest-worker silently
+    # falls back to doc-service's non-OCR image and OCR breaks at runtime.
+    tagSuffix: "-ocr"
     digest: ""
     pullPolicy: IfNotPresent
   springProfilesActive: "ingest"
@@ -363,11 +398,14 @@ frontend:
 
 # ── Ingress — single resource for the whole stack ───────────────────────
 ingress:
+  # -- Create the Ingress routing `/` to frontend and `/api` to doc-service.
   enabled: true
   className: nginx
+  # -- Public hostname for the whole app (frontend + API). Change this.
   host: easywork.example.com
   annotations: {}
   tls:
+    # -- Provision TLS via the cert-manager ClusterIssuer below.
     enabled: true
     clusterIssuer: letsencrypt-prod
     secretName: easywork-tls
@@ -393,6 +431,7 @@ ingress:
 # ══════════════════════════════════════════════════════════════════════
 
 postgresql:
+  # -- Bundle a Postgres instance for the app's own database.
   enabled: true
   # Fixed (not templated) so our own env-var helpers can build connection
   # strings without replicating the subchart's internal naming logic.
@@ -400,10 +439,15 @@ postgresql:
   auth:
     username: easywork
     database: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is
-    # set — rendered into the easywork-postgres-auth Secret by
+    # Auto-generated and kept stable across `helm upgrade` if left blank
+    # (unless externalSecrets.enabled or secrets.existingSecret is set) —
+    # rendered into the easywork-postgres-auth Secret by
     # templates/secret.yaml, then referenced here via existingSecret so the
-    # subchart and our own Deployments read the exact same value.
+    # subchart and our own Deployments read the exact same value. Set this
+    # explicitly only if you need a specific value (e.g. restoring a DB
+    # dump) — regenerating it on every `helm upgrade` desyncs the Secret
+    # from the already-initialized database and breaks authentication.
+    # -- Postgres password (auto-generated if left blank).
     password: ""
     existingSecret: "easywork-postgres-auth"
   image:
@@ -429,11 +473,14 @@ externalDatabase:
   passwordKey: password
 
 rabbitmq:
+  # -- Bundle a RabbitMQ instance.
   enabled: true
   fullnameOverride: "easywork-rabbitmq"
   auth:
     username: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- RabbitMQ password (auto-generated if left blank).
     password: ""
     existingSecret: "easywork-rabbitmq-auth"
   image:
@@ -456,11 +503,14 @@ externalRabbitmq:
   passwordKey: password
 
 minio:
+  # -- Bundle a MinIO instance for document storage.
   enabled: true
   fullnameOverride: "easywork-minio"
   auth:
     rootUser: easywork
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- MinIO root password (auto-generated if left blank).
     rootPassword: ""
     existingSecret: "easywork-minio-auth"
   image:
@@ -488,10 +538,13 @@ externalMinio:
   secretKeyKey: password
 
 meilisearch:
+  # -- Bundle a Meilisearch instance.
   enabled: true
   fullnameOverride: "easywork-meilisearch"
   auth:
-    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    # Auto-generated and kept stable across `helm upgrade` if left blank —
+    # see postgresql.auth.password's comment above for why this matters.
+    # -- Meilisearch master key (auto-generated if left blank).
     masterKey: ""
     existingMasterKeySecret: "easywork-meilisearch-auth"
   environment:
@@ -515,3 +568,116 @@ externalMeilisearch:
   # Default matches the official meilisearch chart's own existingMasterKeySecret
   # key convention.
   apiKeyKey: MEILI_MASTER_KEY
+
+# ── keycloak — optional bundled identity provider ───────────────────────────
+# See docs/adr/0006-optional-bundled-keycloak-identity-provider.md. Disabled
+# by default: SME/enterprise deployments bring their own IdP via
+# oauth2.jwtIssuerUri / app.keycloak* below. values-family.yaml sets
+# enabled: true for a zero-config first login (no external IdP to stand up).
+# This whole block (except the top-level `enabled`/`fullnameOverride`) is the
+# CloudPirates keycloak chart's OWN values namespace — hence the nested
+# `keycloak.keycloak.*` path, not a typo.
+keycloak:
+  # -- Bundle a Keycloak instance instead of requiring an external IdP. See
+  # docs/adr/0006-optional-bundled-keycloak-identity-provider.md.
+  enabled: false
+  fullnameOverride: "easywork-keycloak"
+  image:
+    registry: docker.io
+    repository: keycloak/keycloak
+    # Re-verify with `helm show values oci://registry-1.docker.io/cloudpirates/keycloak`
+    # before bumping.
+    tag: "26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13"
+  keycloak:
+    adminUser: admin
+    # Password auto-generated (and kept stable across `helm upgrade`) by
+    # templates/secret.yaml when this Secret doesn't already exist — never
+    # hardcoded here per CLAUDE.md's credentials rule.
+    existingSecret: "easywork-keycloak-admin-auth"
+    # Required when keycloak.enabled: true — public URL including scheme,
+    # e.g. "https://auth.example.com". Must be a DIFFERENT hostname than
+    # `ingress.host` (see keycloak.ingress below), and must be reachable from
+    # inside the cluster by the frontend pod itself: frontend/src/lib/auth.ts
+    # makes a direct server-side call to this URL for token refresh, not just
+    # browser redirects, so this needs hairpin-NAT/LoadBalancer support or
+    # split-horizon DNS, not just a public A/CNAME record.
+    # -- Public URL of the bundled Keycloak, incl. scheme (required when
+    # keycloak.enabled: true — see keycloak.ingress.hosts below).
+    hostname: ""
+    hostnameStrict: true
+    httpEnabled: true
+    # Runs `start` (production mode), not `start-dev` — unlike compose.yml's
+    # dev-only Keycloak.
+    production: true
+    # Required behind an ingress-nginx-style reverse proxy, else Keycloak
+    # doesn't trust X-Forwarded-* and mis-builds its own URLs.
+    proxyHeaders: "xforwarded"
+  database:
+    type: postgres
+    # database.* (host/username/existingSecret/secretKeys) is only consumed
+    # when postgres.enabled: false below — with the embedded Postgres on,
+    # the chart wires KC_DB_USERNAME/KC_DB_PASSWORD straight from
+    # postgres.auth.* instead. Left at chart defaults here on purpose.
+  postgres:
+    # Dedicated, isolated Postgres instance for Keycloak — deliberately never
+    # shares the umbrella chart's own `postgresql:` release above (that
+    # CloudPirates chart doesn't support multiple databases on one release
+    # cleanly, see docs/adr/0005's negative-consequences section).
+    # -- Bundle a dedicated Postgres instance for Keycloak.
+    enabled: true
+    auth:
+      username: keycloak
+      database: keycloak
+      # Password auto-generated by templates/secret.yaml, key "postgres-password"
+      # — same pattern as app.keycloakClientSecret below.
+      existingSecret: "easywork-keycloak-db-auth"
+    persistence:
+      size: 5Gi
+    # This chart sets no defaults at all — CLAUDE.md requires resources on
+    # every container, so these are ours (family-sized; see values-sme.yaml
+    # if you enable keycloak.enabled there too).
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  realm:
+    # Imports the "easywork" realm/client generated by templates/secret.yaml
+    # (Secret key "realm.json") — no seeded users. Create your first user via
+    # the Admin Console/API after install (see NOTES.txt).
+    # -- Auto-import the generated realm/client on startup.
+    import: true
+    existingSecret: "easywork-keycloak-realm-auth"
+  ingress:
+    # -- Create a dedicated Ingress for Keycloak (separate hostname from the
+    # main `ingress.host` — see docs/adr/0006).
+    enabled: true
+    className: nginx
+    hosts:
+      # -- Same hostname as keycloak.keycloak.hostname, without the scheme.
+      - host: ""
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: easywork-keycloak-tls
+        hosts: []   # same hostname as above
+  # This chart sets no defaults at all — CLAUDE.md requires resources on
+  # every container, so these are ours.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "1500m"
+      memory: 1536Mi
+
+# Non-secret realm/client identifiers shared between templates/secret.yaml
+# (which builds the realm-import JSON) and the oauthIssuerUri/oauthJwkSetUri
+# helpers in _helpers.tpl. Deliberately kept out of the `keycloak:` block
+# above, which is entirely the subchart's own values namespace.
+keycloakRealm:
+  name: "easywork"
+  displayName: "easywork"

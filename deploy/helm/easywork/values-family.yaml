@@ -85,3 +85,28 @@ meilisearch:
       memory: 512Mi
   persistence:
     size: 5Gi
+
+# Family users have no existing corporate IdP to bring — bundle Keycloak so
+# `helm install -f values-family.yaml` gives a fully working login with
+# nothing external required. Still needs keycloak.keycloak.hostname,
+# keycloak.ingress.hosts[0].host and keycloak.ingress.tls[0].hosts set to a
+# real, resolvable hostname (see values.yaml and NOTES.txt).
+keycloak:
+  enabled: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+  postgres:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    persistence:
+      size: 2Gi
