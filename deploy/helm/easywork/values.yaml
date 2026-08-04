@@ -100,10 +100,9 @@ docService:
   replicaCount: 2
   image:
     registry: ghcr.io
-    # Placeholder — this repo has no existing image-registry convention yet
-    # (CI currently only build-validates, never pushes). Point this at
-    # wherever you actually publish the `runtime` target of backend/Dockerfile.
-    repository: easywork/easywork-backend
+    # Published by .github/workflows/release.yml on every vX.Y.Z tag, from
+    # backend/Dockerfile's `runtime` target (no OCR).
+    repository: dtrouillet/easywork-backend
     tag: ""
     # If set, takes precedence over `tag` — prefer this for real deployments
     # per the "pin to digest, never latest" rule.
@@ -164,10 +163,11 @@ ingestWorker:
   replicaCount: 2
   image:
     registry: ghcr.io
-    # Must be built from backend/Dockerfile's `runtime-ocr` target — the only
-    # one with Tesseract/Leptonica installed. doc-service/search-service use
-    # the lighter `runtime` target instead.
-    repository: easywork/easywork-backend
+    # Same repository as doc-service/search-service, but must use the
+    # `-ocr`-suffixed tag (e.g. "v1.2.3-ocr") published by
+    # .github/workflows/release.yml from backend/Dockerfile's `runtime-ocr`
+    # target — the only one with Tesseract/Leptonica installed.
+    repository: dtrouillet/easywork-backend
     tag: ""
     digest: ""
     pullPolicy: IfNotPresent
@@ -243,7 +243,9 @@ searchService:
   # warning is also rendered in NOTES.txt on every install/upgrade.
   image:
     registry: ghcr.io
-    repository: easywork/easywork-backend
+    # Same `runtime` image as doc-service, published by
+    # .github/workflows/release.yml.
+    repository: dtrouillet/easywork-backend
     tag: ""
     digest: ""
     pullPolicy: IfNotPresent
@@ -297,7 +299,8 @@ frontend:
   replicaCount: 2
   image:
     registry: ghcr.io
-    repository: easywork/easywork-frontend
+    # Published by .github/workflows/release.yml on every vX.Y.Z tag.
+    repository: dtrouillet/easywork-frontend
     tag: ""
     digest: ""
     pullPolicy: IfNotPresent
