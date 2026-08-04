@@ -9,14 +9,17 @@ RUN ./mvnw package -DskipTests -q
 
 # ── Stage 2: runtime (standard — no OCR) ───────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime
-RUN addgroup -S easywork && adduser -S easywork -G easywork
+# Fixed UID/GID 1000 — must match the Helm chart's podSecurityContext
+# (runAsUser/runAsGroup/fsGroup: 1000); a plain `-S` system user gets
+# whatever UID is next available (typically <1000) and silently mismatches.
+RUN addgroup -g 1000 -S easywork && adduser -u 1000 -S easywork -G easywork
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 RUN chown easywork:easywork app.jar
 USER easywork
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8080/actuator/health/liveness || exit 1
+  CMD wget -qO- http://127.0.0.1:8080/actuator/health/liveness || exit 1
 ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
 
@@ -64,13 +67,14 @@ COPY --from=lept-build /opt/leptonica/lib/libleptonica.so /usr/local/lib/liblept
 RUN ln -s "$(ldconfig -p | grep -oP '/\S*libtesseract\.so\.\S*' | head -1)" \
       "$(dirname "$(ldconfig -p | grep -oP '/\S*libtesseract\.so\.\S*' | head -1)")/libtesseract.so" \
   && ldconfig
-RUN groupadd -r easywork && useradd -r -g easywork easywork
+# Fixed UID/GID 1000 — see the `runtime` stage above for why.
+RUN groupadd -g 1000 easywork && useradd -u 1000 -g easywork easywork
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 RUN chown easywork:easywork app.jar
 USER easywork
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8080/actuator/health/liveness || exit 1
+  CMD wget -qO- http://127.0.0.1:8080/actuator/health/liveness || exit 1
 ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

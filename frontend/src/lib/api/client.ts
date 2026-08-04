@@ -1,4 +1,24 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+declare global {
+  interface Window {
+    __ENV__?: { API_URL?: string };
+  }
+}
+
+/**
+ * Resolved per-call rather than once at module load: the browser reads
+ * window.__ENV__ (populated by /env.js, written by the Docker image's
+ * entrypoint from a container env var at startup — see frontend/Dockerfile)
+ * so one built image works across environments, since NEXT_PUBLIC_* vars are
+ * otherwise baked in at build time. Falls back to NEXT_PUBLIC_API_URL for any
+ * server-side execution (SSR/route handlers, no window) and local dev, where
+ * /env.js doesn't exist.
+ */
+function apiBase(): string {
+  if (typeof window !== "undefined" && window.__ENV__?.API_URL) {
+    return window.__ENV__.API_URL;
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -25,7 +45,7 @@ async function apiFetch<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     ...init,
     headers,
   });
@@ -60,7 +80,7 @@ export function apiClient(token: string) {
       return apiFetch<T>(path, token, { method: "POST", body: form });
     },
     downloadBlob: async (path: string): Promise<Blob> => {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await fetch(`${apiBase()}${path}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -88,7 +108,7 @@ export function uploadWithProgress<T>(
     form.append("file", file);
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${API_BASE}${path}`);
+    xhr.open("POST", `${apiBase()}${path}`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
     xhr.upload.onprogress = (e) => {

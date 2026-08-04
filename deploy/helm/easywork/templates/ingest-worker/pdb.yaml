@@ -1,0 +1,14 @@
+{{- if .Values.ingestWorker.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "easywork.fullname" . }}-ingest-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "ingest-worker") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.ingestWorker.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "ingest-worker") | nindent 6 }}
+{{- end }}

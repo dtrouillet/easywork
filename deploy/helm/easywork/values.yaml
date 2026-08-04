@@ -1,0 +1,517 @@
+## easywork — default values (all features on, reasonable sizing).
+## See values-family.yaml / values-sme.yaml for the two documented tiers.
+## Every field here is overridable; this file is the reference for what exists.
+
+# yaml-language-server: $schema=values.schema.json
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  commonLabels: {}
+  commonAnnotations: {}
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: true
+
+# Namespace-scoped RBAC scaffold. Nothing in easywork calls the Kubernetes API
+# today, so this defaults to a no-op — flip `create: true` and add rules only
+# if a future feature actually needs it (e.g. reading its own ConfigMap via
+# the API instead of a mounted volume).
+rbac:
+  create: false
+  rules: []
+
+networkPolicy:
+  # Default-deny ingress+egress per component, with explicit allows for the
+  # traffic paths the app actually needs (ingress-controller -> frontend/doc-service,
+  # frontend -> doc-service, backend components -> their own dependencies, DNS
+  # egress always). See templates/networkpolicy.yaml.
+  enabled: true
+  # Selectors identifying your ingress controller's pods, so the policy can
+  # scope the external-facing allow rule instead of accepting from anywhere.
+  # Defaults are permissive (any namespace/pod) — tighten these in production,
+  # e.g. {"kubernetes.io/metadata.name": "ingress-nginx"} /
+  # {"app.kubernetes.io/name": "ingress-nginx"}.
+  ingressNamespaceSelector: {}
+  ingressPodSelector: {}
+
+# ── Secrets ──────────────────────────────────────────────────────────────
+secrets:
+  # Escape hatch: if set, templates/secret.yaml is not rendered at all and every
+  # component instead reads from a Secret you created yourself with this name
+  # (must contain all the keys the chart would otherwise generate — see
+  # templates/secret.yaml for the exact key names).
+  existingSecret: ""
+
+externalSecrets:
+  # When true, templates/external-secret.yaml renders `external-secrets.io/v1`
+  # ExternalSecret resources instead of templates/secret.yaml's plain Secrets —
+  # same target Secret names either way, so nothing else in the chart needs to
+  # know which one actually produced them. Requires the external-secrets
+  # operator and the referenced store to already exist in the cluster.
+  enabled: false
+  backend:
+    kind: ClusterSecretStore # or SecretStore
+    name: vault-backend
+  refreshInterval: 1h
+  # Path in the external store each credential domain is read from — adjust
+  # to match your store's actual layout.
+  paths:
+    postgres: easywork/postgres
+    rabbitmq: easywork/rabbitmq
+    minio: easywork/minio
+    meilisearch: easywork/meilisearch
+    app: easywork/app
+
+# ── Auth / CORS shared by every backend component ──────────────────────────
+oauth2:
+  # Required. The OIDC issuer URI baked into JWTs your identity provider issues
+  # (Keycloak realm URL, browser-facing).
+  jwtIssuerUri: ""
+  # Optional. Only needed when the issuer URL above isn't reachable from
+  # inside the cluster (e.g. it's a public ingress hostname) — point this at
+  # the identity provider's in-cluster JWK set endpoint instead.
+  jwtJwkSetUri: ""
+
+cors:
+  # Required. Comma-separated list of origins allowed to call the backend
+  # (typically the frontend's public URL).
+  allowedOrigins: ""
+
+# Frontend/NextAuth + Keycloak client credentials.
+app:
+  # Required (via Secret) — NextAuth session-signing secret.
+  nextAuthSecret: ""
+  keycloakClientId: "easywork"
+  # Required (via Secret).
+  keycloakClientSecret: ""
+  # Required — same value as oauth2.jwtIssuerUri in practice, kept separate
+  # since NextAuth and the backend resource server read it independently.
+  keycloakIssuer: ""
+
+# ── doc-service — always-active document module, no SPRING_PROFILES_ACTIVE ─
+docService:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    # Published by .github/workflows/release.yml on every vX.Y.Z tag, from
+    # backend/Dockerfile's `runtime` target (no OCR).
+    repository: dtrouillet/easywork-backend
+    tag: ""
+    # If set, takes precedence over `tag` — prefer this for real deployments
+    # per the "pin to digest, never latest" rule.
+    digest: ""
+    pullPolicy: IfNotPresent
+  springProfilesActive: ""
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 1536Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    liveness:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 45
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── ingest-worker — SPRING_PROFILES_ACTIVE=ingest, needs the runtime-ocr image
+ingestWorker:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    # Same repository as doc-service/search-service, but must use the
+    # `-ocr`-suffixed tag (e.g. "v1.2.3-ocr") published by
+    # .github/workflows/release.yml from backend/Dockerfile's `runtime-ocr`
+    # target — the only one with Tesseract/Leptonica installed.
+    repository: dtrouillet/easywork-backend
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  springProfilesActive: "ingest"
+  service:
+    # No inbound application traffic (queue consumer only) — this Service
+    # exists purely so /actuator/prometheus has a stable scrape target.
+    # Set to false for strict adherence to a "no Service" ingest-worker.
+    enabled: true
+    type: ClusterIP
+    port: 8080
+  resources:
+    # OCR (Tesseract, 300 DPI PDF rasterization) is CPU/memory intensive —
+    # generous limits relative to doc-service/search-service.
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 3Gi
+  autoscaling:
+    # The only component CLAUDE.md mandates HPA on — CPU-driven, OCR-bound.
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    liveness:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 45
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  ocr:
+    # Leave empty to use backend/src/main/resources/application.yml's own
+    # defaults (tesseract-ocr apt path, fra+eng).
+    tessdataPath: ""
+    ocrLanguages: ""
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── search-service — SPRING_PROFILES_ACTIVE=search, plain `runtime` image ──
+searchService:
+  replicaCount: 1
+  # KNOWN GAP (ADR-0004): DocumentReadyEvent, search-service's input, is still
+  # in-process-only delivery (@ApplicationModuleListener, not @Externalized).
+  # Deploying this as a genuinely separate pod from doc-service means search
+  # indexing silently never happens until that's fixed upstream in the app.
+  # This chart still supports deploying it separately per design goals — the
+  # warning is also rendered in NOTES.txt on every install/upgrade.
+  image:
+    registry: ghcr.io
+    # Same `runtime` image as doc-service, published by
+    # .github/workflows/release.yml.
+    repository: dtrouillet/easywork-backend
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  springProfilesActive: "search"
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    liveness:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 45
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── frontend — Next.js ──────────────────────────────────────────────────
+frontend:
+  replicaCount: 2
+  image:
+    registry: ghcr.io
+    # Published by .github/workflows/release.yml on every vX.Y.Z tag.
+    repository: dtrouillet/easywork-frontend
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    # Real HTTP probe against frontend/src/app/api/health/route.ts (added
+    # alongside this chart) — Next.js has no Actuator-equivalent otherwise.
+    liveness:
+      path: /api/health
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 3
+      failureThreshold: 3
+    readiness:
+      path: /api/health
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+  env:
+    # Runtime-injected into the browser as `window.__ENV__.API_URL` by the
+    # image's docker-entrypoint.sh — NOT a Next.js build-time
+    # NEXT_PUBLIC_* var, so one built image is redeployable across
+    # environments/hostnames. See frontend/Dockerfile and
+    # frontend/src/lib/api/client.ts.
+    apiUrl: ""
+    nextAuthUrl: ""
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    # Unlike the backend components: docker-entrypoint.sh writes public/env.js
+    # at container startup (the runtime API-URL injection mechanism), so the
+    # image's public/ directory must stay writable. Everything else about the
+    # posture (non-root, no privilege escalation, all caps dropped) matches.
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Ingress — single resource for the whole stack ───────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: easywork.example.com
+  annotations: {}
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+    secretName: easywork-tls
+
+# ══════════════════════════════════════════════════════════════════════
+# Third-party dependencies
+#
+# Bitnami's free chart catalog is no longer usable as-is for this stack:
+# `bitnami/rabbitmq` and `bitnami/minio` now default to images that only
+# exist in the frozen, unpatched `bitnamilegacy` namespace, and
+# `bitnami/postgresql` no longer publishes semver image tags at all (only
+# `latest`/bare digests). MinIO Inc. itself archived the open-source MinIO
+# project in 2026 — there is no actively-developed upstream to point at for
+# object storage at all right now, Bitnami or otherwise.
+#
+# This chart uses CloudPirates (github.com/CloudPirates-io/helm-charts), an
+# actively-maintained community response to exactly this situation: real
+# pinned-digest images from the official Docker Library (postgres, rabbitmq)
+# or a digest-pinned rebuild of MinIO's last pre-archival release, real
+# `existingSecret` support, weekly release cadence. See Chart.yaml's
+# dependencies comment and the chart README for the full rationale — this is
+# a documented, deliberate risk/trade-off, not an oversight.
+# ══════════════════════════════════════════════════════════════════════
+
+postgresql:
+  enabled: true
+  # Fixed (not templated) so our own env-var helpers can build connection
+  # strings without replicating the subchart's internal naming logic.
+  fullnameOverride: "easywork-postgresql"
+  auth:
+    username: easywork
+    database: easywork
+    # Required unless externalSecrets.enabled or secrets.existingSecret is
+    # set — rendered into the easywork-postgres-auth Secret by
+    # templates/secret.yaml, then referenced here via existingSecret so the
+    # subchart and our own Deployments read the exact same value.
+    password: ""
+    existingSecret: "easywork-postgres-auth"
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "18.4@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
+  persistence:
+    size: 20Gi
+  # Manual WAL streaming replication only — no automatic failover built into
+  # this chart (same ceiling as Bitnami's plain `postgresql` chart). SME tier
+  # turns this on; family tier stays single-instance.
+  replication:
+    enabled: false
+
+# Used instead of the postgresql: block above when postgresql.enabled=false —
+# point at an externally managed Postgres instead of the bundled subchart.
+externalDatabase:
+  host: ""
+  port: 5432
+  database: easywork
+  existingSecret: ""
+  usernameKey: username
+  passwordKey: password
+
+rabbitmq:
+  enabled: true
+  fullnameOverride: "easywork-rabbitmq"
+  auth:
+    username: easywork
+    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    password: ""
+    existingSecret: "easywork-rabbitmq-auth"
+  image:
+    registry: docker.io
+    repository: rabbitmq
+    tag: "4.3.4-management@sha256:4e628d3cbc61ef45c5918e19bb9844874410d96d4ced897ced7d072d63ad555c"
+  replicaCount: 1
+  peerDiscoveryK8sPlugin:
+    enabled: false
+  pdb:
+    create: false
+  persistence:
+    size: 10Gi
+
+externalRabbitmq:
+  host: ""
+  port: 5672
+  existingSecret: ""
+  usernameKey: username
+  passwordKey: password
+
+minio:
+  enabled: true
+  fullnameOverride: "easywork-minio"
+  auth:
+    rootUser: easywork
+    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    rootPassword: ""
+    existingSecret: "easywork-minio-auth"
+  image:
+    registry: docker.io
+    repository: cloudpirates/image-minio
+    tag: "RELEASE.2025-10-15T17-29-55Z-hardened@sha256:8dc02a7e509336c8bbb67962086d691bdcde20a2c9327ed68e5081a681f6dbfc"
+  defaultBuckets: "easywork-documents"
+  persistence:
+    size: 50Gi
+    # This chart has no distributed/erasure-coded multi-node mode — object
+    # storage durability comes from the underlying StorageClass, not from
+    # MinIO-level replication. Point this at a replicated/durable class
+    # (Longhorn, Ceph RBD, cloud block storage) for anything beyond family-tier
+    # single-node use. See the chart README for the full explanation.
+    storageClass: ""
+
+externalMinio:
+  endpoint: ""
+  bucket: "easywork-documents"
+  existingSecret: ""
+  # Defaults match the bundled CloudPirates minio chart's own existingSecret
+  # key convention, so the same Secret shape works whether minio.enabled is
+  # true or false.
+  accessKeyKey: user
+  secretKeyKey: password
+
+meilisearch:
+  enabled: true
+  fullnameOverride: "easywork-meilisearch"
+  auth:
+    # Required unless externalSecrets.enabled or secrets.existingSecret is set.
+    masterKey: ""
+    existingMasterKeySecret: "easywork-meilisearch-auth"
+  environment:
+    MEILI_ENV: production
+  persistence:
+    enabled: true
+    size: 10Gi
+  # This chart sets no defaults at all — CLAUDE.md requires resources on
+  # every container, so these are ours.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+externalMeilisearch:
+  host: ""
+  existingSecret: ""
+  # Default matches the official meilisearch chart's own existingMasterKeySecret
+  # key convention.
+  apiKeyKey: MEILI_MASTER_KEY

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Lean production image (frontend/Dockerfile) — copies .next/standalone
+  // instead of the full node_modules tree.
+  output: "standalone",
 };
 
 export default nextConfig;

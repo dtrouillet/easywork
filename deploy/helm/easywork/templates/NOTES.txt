@@ -1,0 +1,50 @@
+easywork has been deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Components deployed:
+  - doc-service    ({{ .Values.docService.replicaCount }} replica(s){{ if .Values.docService.autoscaling.enabled }}, autoscaling {{ .Values.docService.autoscaling.minReplicas }}-{{ .Values.docService.autoscaling.maxReplicas }}{{ end }})
+  - ingest-worker  ({{ if .Values.ingestWorker.autoscaling.enabled }}autoscaling {{ .Values.ingestWorker.autoscaling.minReplicas }}-{{ .Values.ingestWorker.autoscaling.maxReplicas }}{{ else }}{{ .Values.ingestWorker.replicaCount }} replica(s){{ end }})
+  - search-service ({{ .Values.searchService.replicaCount }} replica(s))
+  - frontend       ({{ .Values.frontend.replicaCount }} replica(s))
+
+{{- if .Values.ingress.enabled }}
+
+Ingress: https://{{ .Values.ingress.host }}
+{{- end }}
+
+⚠ KNOWN GAP — search indexing (ADR-0004, docs/adr/0004-cross-pod-event-delivery-via-amqp.md):
+  DocumentReadyEvent (search-service's input) is still delivered in-process
+  only, not over AMQP. Because search-service runs as a SEPARATE pod from
+  doc-service, this means newly-ready documents currently do NOT get indexed
+  into Meilisearch — search results will silently go stale. This is a known,
+  tracked application-level gap, not something this chart can work around.
+  Fix upstream (externalize DocumentReadyEvent, mirroring the fix already
+  applied to DocumentUploadedEvent/IngestCompletedEvent) before relying on
+  search in a multi-pod deployment.
+
+{{- if .Values.minio.enabled }}
+
+⚠ MinIO dependency risk:
+  MinIO Inc. archived the open-source MinIO project in 2026 — there is no
+  actively-developed upstream to move to. This chart's minio dependency
+  (CloudPirates) is pinned to the last pre-archival release
+  (2025-10-15); only the base-image/OS layer receives further patches, not
+  MinIO application code itself. It also has no distributed/erasure-coded
+  HA mode — object-storage durability comes entirely from your
+  minio.persistence.storageClass. Review this risk before relying on it for
+  production data. See values.yaml's comments and the chart README for
+  details.
+{{- end }}
+
+{{- if not .Values.externalSecrets.enabled }}
+{{- if not .Values.secrets.existingSecret }}
+
+Credentials were rendered into Kubernetes Secrets from the values you
+supplied (postgresql.auth.password, rabbitmq.auth.password,
+minio.auth.rootPassword, meilisearch.auth.masterKey, app.nextAuthSecret,
+app.keycloakClientSecret). Review `kubectl get secrets -n {{ .Release.Namespace }}`
+and rotate anything that was left as a placeholder before going to production.
+{{- end }}
+{{- end }}
+
+Check application status:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}

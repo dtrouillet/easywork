@@ -1,0 +1,14 @@
+{{- if .Values.docService.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "easywork.fullname" . }}-doc-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "doc-service") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.docService.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "easywork.selectorLabels" (dict "root" . "component" "doc-service") | nindent 6 }}
+{{- end }}

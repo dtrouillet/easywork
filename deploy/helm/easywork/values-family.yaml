@@ -1,0 +1,87 @@
+## Family tier overlay — single replica, minimal resources, zero-config
+## simplicity. Use with: helm install ... -f values-family.yaml
+## Every field below overrides the corresponding one in values.yaml; anything
+## not mentioned here keeps its values.yaml default.
+
+docService:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+
+ingestWorker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+
+searchService:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podDisruptionBudget:
+    enabled: false
+
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  podDisruptionBudget:
+    enabled: false
+
+postgresql:
+  replicaCount: 1
+  replication:
+    enabled: false
+  persistence:
+    size: 5Gi
+
+rabbitmq:
+  replicaCount: 1
+  peerDiscoveryK8sPlugin:
+    enabled: false
+  pdb:
+    create: false
+  persistence:
+    size: 5Gi
+
+minio:
+  persistence:
+    size: 10Gi
+
+meilisearch:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    size: 5Gi

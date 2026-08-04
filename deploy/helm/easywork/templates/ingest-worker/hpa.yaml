@@ -1,0 +1,23 @@
+{{- if .Values.ingestWorker.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "easywork.fullname" . }}-ingest-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "easywork.componentLabels" (dict "root" . "component" "ingest-worker") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "easywork.fullname" . }}-ingest-worker
+  minReplicas: {{ .Values.ingestWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.ingestWorker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.ingestWorker.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

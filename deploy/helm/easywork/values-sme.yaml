@@ -1,0 +1,88 @@
+## SME tier overlay — HA replica counts, HPA, PodDisruptionBudgets. Use with:
+## helm install ... -f values-sme.yaml
+## Every field below overrides the corresponding one in values.yaml; anything
+## not mentioned here keeps its values.yaml default.
+
+docService:
+  replicaCount: 3
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+ingestWorker:
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+searchService:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+frontend:
+  replicaCount: 3
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+postgresql:
+  # IMPORTANT LIMITATION — read before relying on this for HA:
+  # The CloudPirates `postgres` chart's replication.enabled models exactly
+  # ONE primary + ONE streaming standby, and the standby is a SEPARATE Helm
+  # release (replication.primary.host points the standby at the primary's
+  # already-running Service) — not something a single `postgresql:` values
+  # block within this umbrella chart's one `helm install` can express, and
+  # bumping `replicaCount` alone here would NOT give you replication (each
+  # StatefulSet replica gets its own independent, unsynced PVC — silent data
+  # divergence, not HA). Real Postgres HA under this dependency choice
+  # requires a second, manual `helm install` of the standby:
+  #   helm install easywork-postgresql-standby oci://registry-1.docker.io/cloudpirates/postgres \
+  #     --set replication.enabled=true \
+  #     --set replication.primary.host=easywork-postgresql \
+  #     --set replication.auth.password=<same as the primary's replication password>
+  # Tracked as a manual operational step, not automated by this chart. If
+  # automatic failover matters more than this manual-replica approach,
+  # evaluate CloudNativePG (a real operator) instead of this dependency.
+  replicaCount: 1
+  persistence:
+    size: 50Gi
+
+rabbitmq:
+  replicaCount: 3
+  peerDiscoveryK8sPlugin:
+    enabled: true
+  pdb:
+    create: true
+    minAvailable: "2"
+  persistence:
+    size: 20Gi
+
+minio:
+  # No real distributed/erasure-coded HA mode in this chart (see values.yaml's
+  # comment on minio.persistence.storageClass) — durability here comes from
+  # pointing storageClass at a replicated/durable class, not from replicas.
+  persistence:
+    size: 200Gi
+    storageClass: "" # set to your replicated/durable StorageClass name
+
+meilisearch:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  persistence:
+    size: 50Gi
+
+networkPolicy:
+  enabled: true
+  # Same deny-all baseline as the default tier — tighten
+  # ingressNamespaceSelector/ingressPodSelector to your real ingress
+  # controller's labels rather than leaving them permissive in production.

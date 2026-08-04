@@ -1,0 +1,52 @@
+apiVersion: v2
+name: easywork
+description: >-
+  easywork — enterprise document management system (DMS). Deploys doc-service,
+  ingest-worker, search-service and the frontend as independent Deployments,
+  plus optional Postgres/RabbitMQ/MinIO/Meilisearch dependencies.
+type: application
+# Chart version — bumped independently of the application release.
+version: 0.1.0
+# App version — tracks the backend/frontend release actually deployed.
+appVersion: "0.1.0"
+kubeVersion: ">=1.26.0-0"
+home: https://github.com/dtrouillet/easywork
+sources:
+  - https://github.com/dtrouillet/easywork
+keywords:
+  - document-management
+  - dms
+  - spring-boot
+  - nextjs
+maintainers:
+  - name: easywork maintainers
+dependencies:
+  # NOTE on dependency choices — see values.yaml comments and README.md for the
+  # full rationale. Summary: Bitnami's free `rabbitmq`/`minio` charts now point
+  # at a frozen, unpatched `bitnamilegacy` image namespace, and `bitnamipostgresql`
+  # no longer publishes semver image tags at all. CloudPirates (an active
+  # community response to Bitnami's changes) republishes all three on real,
+  # pinned, official upstream images (Docker Library postgres/rabbitmq; a
+  # digest-pinned rebuild of MinIO's last pre-archival release, since MinIO
+  # Inc. itself archived the open-source project). Re-verify these versions
+  # with `helm show chart oci://registry-1.docker.io/cloudpirates/<name>`
+  # before bumping — this vendor ships new chart versions frequently.
+  - name: postgres
+    alias: postgresql
+    version: "0.19.12"
+    repository: "oci://registry-1.docker.io/cloudpirates"
+    condition: postgresql.enabled
+  - name: rabbitmq
+    version: "0.21.12"
+    repository: "oci://registry-1.docker.io/cloudpirates"
+    condition: rabbitmq.enabled
+  - name: minio
+    version: "0.13.1"
+    repository: "oci://registry-1.docker.io/cloudpirates"
+    condition: minio.enabled
+  # Meilisearch's own official chart — unaffected by the Bitnami/MinIO
+  # situation above, actively maintained, real pinned image tags.
+  - name: meilisearch
+    version: "0.36.0"
+    repository: "https://meilisearch.github.io/meilisearch-kubernetes"
+    condition: meilisearch.enabled

@@ -1,0 +1,15 @@
+dependencies:
+- name: postgres
+  repository: oci://registry-1.docker.io/cloudpirates
+  version: 0.19.12
+- name: rabbitmq
+  repository: oci://registry-1.docker.io/cloudpirates
+  version: 0.21.12
+- name: minio
+  repository: oci://registry-1.docker.io/cloudpirates
+  version: 0.13.1
+- name: meilisearch
+  repository: https://meilisearch.github.io/meilisearch-kubernetes
+  version: 0.36.0
+digest: sha256:944571758eadcfd63a9c9299166e294e20b88790b246fa82c3b53029cb63c3db
+generated: "2026-08-03T15:21:19.109370749+02:00"
