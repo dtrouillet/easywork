@@ -30,6 +30,13 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "easywork.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.service.port }}
           - path: /api
             pathType: Prefix
             backend:
