@@ -147,11 +147,42 @@ Meilisearch host — full URL, matching what SearchProperties.host expects.
 {{- end -}}
 
 {{/*
+Public-facing OIDC issuer URL, baked into JWT `iss` claims. Must be reachable
+by both the browser (NextAuth's redirect flow) and, per
+frontend/src/lib/auth.ts's single-issuer design, the frontend pod itself for
+server-side token exchange/refresh.
+*/}}
+{{- define "easywork.oauthIssuerUri" -}}
+{{- if .Values.keycloak.enabled -}}
+{{- printf "%s/realms/%s" .Values.keycloak.keycloak.hostname .Values.keycloakRealm.name -}}
+{{- else -}}
+{{- required "oauth2.jwtIssuerUri is required (or set keycloak.enabled=true)" .Values.oauth2.jwtIssuerUri -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+In-cluster JWK-set URL, so backend pods fetch signing keys without round-
+tripping through the public ingress. Only the backend resource-server config
+gets this optimization — the frontend has no equivalent split (see auth.ts).
+*/}}
+{{- define "easywork.oauthJwkSetUri" -}}
+{{- if .Values.keycloak.enabled -}}
+{{- printf "http://%s:%d/realms/%s/protocol/openid-connect/certs" .Values.keycloak.fullnameOverride (.Values.keycloak.service.httpPort | int) .Values.keycloakRealm.name -}}
+{{- else -}}
+{{- .Values.oauth2.jwtJwkSetUri -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Full image reference for one of our own components. Prefers `.digest` (pin by
 digest, per CLAUDE.md's "never latest" rule) over `.tag`, falling back to the
-chart's own appVersion if neither is set. `global.imageRegistry` overrides the
-per-component registry when set (single place to redirect every image through
-a private mirror/pull-through cache).
+chart's own appVersion (plus `.image.tagSuffix` if set — e.g. ingest-worker's
+"-ocr", since backend/Dockerfile's runtime vs runtime-ocr targets are
+published under the same repository with different tag suffixes by
+.github/workflows/release.yml, not different repositories) if neither `.tag`
+nor `.digest` is set. `global.imageRegistry` overrides the per-component
+registry when set (single place to redirect every image through a private
+mirror/pull-through cache).
 Call as: include "easywork.imageRef" (dict "root" $ "image" .Values.docService.image)
 */}}
 {{- define "easywork.imageRef" -}}
@@ -159,7 +190,7 @@ Call as: include "easywork.imageRef" (dict "root" $ "image" .Values.docService.i
 {{- if .image.digest -}}
 {{- printf "%s/%s@%s" $registry .image.repository .image.digest -}}
 {{- else -}}
-{{- printf "%s/%s:%s" $registry .image.repository (.image.tag | default .root.Chart.AppVersion) -}}
+{{- printf "%s/%s:%s" $registry .image.repository (.image.tag | default (printf "%s%s" .root.Chart.AppVersion (.image.tagSuffix | default ""))) -}}
 {{- end -}}
 {{- end -}}
 
@@ -207,9 +238,10 @@ never exercises the capability. Call as: include "easywork.backendCommonEnv" $
 - name: CORS_ALLOWED_ORIGINS
   value: {{ required "cors.allowedOrigins is required" .Values.cors.allowedOrigins | quote }}
 - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
-  value: {{ required "oauth2.jwtIssuerUri is required" .Values.oauth2.jwtIssuerUri | quote }}
-{{- if .Values.oauth2.jwtJwkSetUri }}
+  value: {{ include "easywork.oauthIssuerUri" . | quote }}
+{{- $jwkSetUri := include "easywork.oauthJwkSetUri" . }}
+{{- if $jwkSetUri }}
 - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
-  value: {{ .Values.oauth2.jwtJwkSetUri | quote }}
+  value: {{ $jwkSetUri | quote }}
 {{- end }}
 {{- end -}}

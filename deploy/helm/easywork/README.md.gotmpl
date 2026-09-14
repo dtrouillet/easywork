@@ -1,0 +1,184 @@
+{{ template "chart.header" . }}
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.homepageLine" . }}
+
+Production deployment target for the easywork DMS — see the root `CLAUDE.md`
+("Production deployment — Helm chart" section) for the overall design, and
+`docs/adr/` for the architectural decisions behind it (in particular
+[ADR 0005](../../../docs/adr/0005-helm-chart-third-party-dependency-charts.md)
+for the third-party dependency choices and
+[ADR 0006](../../../docs/adr/0006-optional-bundled-keycloak-identity-provider.md)
+for the optional bundled Keycloak).
+
+## Prerequisites
+
+- Kubernetes {{ template "chart.kubeVersion" . }}
+- Helm 3.8+ (for `oci://` dependency support)
+- An Ingress controller (nginx assumed by the defaults below) and
+  [cert-manager](https://cert-manager.io/) with a `ClusterIssuer` — or set
+  `ingress.tls.enabled: false` / bring your own certificates
+- A real DNS hostname pointed at your ingress (two hostnames if you enable the
+  bundled Keycloak — see below)
+
+## Quick start — family tier (bundled Keycloak, zero external IdP)
+
+`values-family.yaml` sets single-replica sizing and `keycloak.enabled: true`,
+so this is enough for a fully working install with nothing external to stand
+up first. You only need to provide install-specific values: real hostnames.
+Every credential (Postgres/RabbitMQ/MinIO/Meilisearch passwords, NextAuth
+secret, Keycloak admin/DB/OAuth client secrets) is auto-generated for you —
+see "Secrets" below for why, and **never pass a freshly-generated password on
+every command** the way earlier versions of this doc did: re-running
+`--set postgresql.auth.password="$(openssl rand ...)"` on every `helm
+install`/`upgrade` desyncs the Secret from what the already-running database
+actually has, breaking authentication. Leave these fields blank and let the
+chart generate-and-persist them once.
+
+```bash
+helm dependency update deploy/helm/easywork
+
+cat > my-family-values.yaml <<'EOF'
+ingress:
+  host: easywork.example.com          # -> the app itself
+  tls:
+    clusterIssuer: letsencrypt-prod   # or tls.enabled: false if you're not using cert-manager
+frontend:
+  env:
+    apiUrl: https://easywork.example.com
+    nextAuthUrl: https://easywork.example.com
+cors:
+  allowedOrigins: https://easywork.example.com
+keycloak:
+  keycloak:
+    hostname: https://auth.easywork.example.com   # MUST differ from ingress.host — see ADR 0006
+  ingress:
+    hosts:
+      - host: auth.easywork.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: easywork-keycloak-tls
+        hosts:
+          - auth.easywork.example.com
+EOF
+
+helm install easywork deploy/helm/easywork \
+  --namespace easywork --create-namespace \
+  -f deploy/helm/easywork/values-family.yaml \
+  -f my-family-values.yaml
+```
+
+Nothing else needs to be set: `app.keycloakClientSecret`, `oauth2.jwtIssuerUri`
+and `app.keycloakIssuer` are auto-derived (`keycloak.enabled: true`), and
+every password above is auto-generated (see `templates/secret.yaml`).
+
+After install, follow the `NOTES.txt` output: it prints the Keycloak Admin
+Console URL and the `kubectl` command to retrieve the auto-generated admin
+password. No application user is seeded — create your first one via the
+Admin Console before anyone can log in.
+
+⚠️ The frontend pod calls Keycloak's *public* hostname directly for
+server-side token refresh (`frontend/src/lib/auth.ts`), not just via browser
+redirect — it must be reachable from **inside** the cluster, which needs
+hairpin-NAT/LoadBalancer support or split-horizon DNS, not just a public DNS
+record. See ADR 0006 for details if login redirects work but the callback
+then fails.
+
+## Quick start — SME tier (bring your own IdP)
+
+`values-sme.yaml` adds HA sizing, HPA, and PodDisruptionBudgets, and leaves
+`keycloak.enabled: false` — point it at your organization's existing IdP.
+Infra passwords (Postgres/RabbitMQ/MinIO/Meilisearch/NextAuth) are still
+auto-generated if left unset, exactly as in the family tier:
+
+```bash
+helm dependency update deploy/helm/easywork
+
+helm install easywork deploy/helm/easywork \
+  --namespace easywork --create-namespace \
+  -f deploy/helm/easywork/values-sme.yaml \
+  --set ingress.host=easywork.example.com \
+  --set frontend.env.apiUrl=https://easywork.example.com \
+  --set frontend.env.nextAuthUrl=https://easywork.example.com \
+  --set cors.allowedOrigins=https://easywork.example.com \
+  --set oauth2.jwtIssuerUri=https://your-idp.example.com/realms/easywork \
+  --set app.keycloakIssuer=https://your-idp.example.com/realms/easywork \
+  --set app.keycloakClientSecret="<your-oauth-client-secret>"
+```
+
+For a real production rollout, prefer `externalSecrets.enabled: true` (needs
+the [external-secrets](https://external-secrets.io/) operator) or
+`secrets.existingSecret` over letting this chart generate and store
+credentials for you — see "Secrets" below.
+
+## Secrets
+
+Every credential is either **required** (fails `helm install` loudly if
+missing — never a silent default) or **auto-generated on first install and
+kept stable across every subsequent `helm upgrade`** (looked up from the
+existing Secret and reused, never re-randomized):
+
+| Value | Family tier (`keycloak.enabled: true`) | SME tier (`keycloak.enabled: false`) |
+|---|---|---|
+| `postgresql.auth.password`, `rabbitmq.auth.password`, `minio.auth.rootPassword`, `meilisearch.auth.masterKey` | Auto-generated | Auto-generated |
+| `app.nextAuthSecret` | Auto-generated | Auto-generated |
+| `app.keycloakClientSecret` | Auto-generated | Required |
+| `oauth2.jwtIssuerUri`, `app.keycloakIssuer` | Auto-derived from the bundled instance | Required |
+| Keycloak admin password, embedded DB password | Auto-generated (only when `keycloak.enabled: true`) | N/A |
+
+⚠️ **Never pass a freshly-random value to any of the auto-generated fields on
+every `helm install`/`upgrade` invocation** (e.g.
+`--set postgresql.auth.password="$(openssl rand ...)"`) — Postgres/RabbitMQ
+only apply that password at first boot, so a new random value on a later
+upgrade desyncs the Secret from what the running database actually has and
+breaks authentication. Leave the field blank (the default) and the chart
+handles stability for you; only set it explicitly if you need to pin a
+specific value (e.g. restoring a dump created with a known password).
+
+Three escape hatches, in order of how much they take over:
+- `secrets.existingSecret` — bring your own single Secret with every key the
+  chart would otherwise generate (see `templates/secret.yaml` for exact key
+  names); disables `templates/secret.yaml` entirely.
+- `externalSecrets.enabled` — source every credential from an
+  [external-secrets.io](https://external-secrets.io/) `(Cluster)SecretStore`
+  instead (see `templates/external-secret.yaml` and `externalSecrets.paths`).
+- Per-dependency `external<Dep>` blocks (`externalDatabase`,
+  `externalRabbitmq`, `externalMinio`, `externalMeilisearch`) — point a
+  specific dependency at an already-running instance instead of the bundled
+  sub-chart, independent of the two options above.
+
+## Dependencies
+
+{{ template "chart.requirementsTable" . }}
+
+All four are condition-gated (`<dep>.enabled`) CloudPirates/official charts —
+see [ADR 0005](../../../docs/adr/0005-helm-chart-third-party-dependency-charts.md)
+for why CloudPirates over Bitnami, and
+[ADR 0006](../../../docs/adr/0006-optional-bundled-keycloak-identity-provider.md)
+for why Keycloak is bundled-but-disabled-by-default with its own dedicated
+Ingress and embedded database.
+
+## Values
+
+Full reference — every field below is overridable; `values.yaml` is the
+source of truth for defaults, and `values-family.yaml`/`values-sme.yaml` are
+overlay files layered on top with `-f` as shown above.
+
+{{ template "chart.valuesTable" . }}
+
+## Regenerating this file
+
+This README (except the "Quick start"/"Secrets" prose above, which live in
+`README.md.gotmpl`) is generated from `values.yaml`'s `# --` comments via
+[helm-docs](https://github.com/norwoodj/helm-docs) — re-run it after changing
+`values.yaml` or `Chart.yaml`:
+
+```bash
+helm-docs --chart-search-root deploy/helm
+```
+
+{{ template "chart.maintainersSection" . }}

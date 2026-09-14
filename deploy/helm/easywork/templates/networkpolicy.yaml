@@ -108,6 +108,19 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    {{- if .Values.keycloak.enabled }}
+    # frontend/src/lib/auth.ts calls the OIDC issuer directly (token
+    # exchange/refresh), not just via browser redirect — needs the bundled
+    # Keycloak reachable from the pod itself, not only from the ingress.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keycloak
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.keycloak.service.httpPort }}
+    {{- end }}
 ---
 {{- range $component := list "doc-service" "ingest-worker" "search-service" }}
 # {{ $component }} -> its own dependencies (Postgres/RabbitMQ/MinIO always;
@@ -174,6 +187,20 @@ spec:
       ports:
         - protocol: TCP
           port: 7700
+    {{- end }}
+    {{- if $root.Values.keycloak.enabled }}
+    # Every backend component's SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+    # may point at the bundled instance (easywork.oauthJwkSetUri) — unlike
+    # Meilisearch above, this applies to all three components, not just
+    # search-service.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: keycloak
+              app.kubernetes.io/instance: {{ $root.Release.Name }}
+      ports:
+        - protocol: TCP
+          port: {{ $root.Values.keycloak.service.httpPort }}
     {{- end }}
     {{- if or (not $root.Values.postgresql.enabled) (not $root.Values.rabbitmq.enabled) (not $root.Values.minio.enabled) }}
     # One or more dependencies are external (not subchart-managed) — this

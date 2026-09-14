@@ -35,14 +35,37 @@ Ingress: https://{{ .Values.ingress.host }}
   details.
 {{- end }}
 
+{{- if .Values.keycloak.enabled }}
+
+⚠ Bundled Keycloak ({{ .Values.keycloakRealm.name }} realm):
+  Admin Console: {{ .Values.keycloak.keycloak.hostname }}/admin/
+  Retrieve the auto-generated admin password:
+    kubectl get secret -n {{ .Release.Namespace }} {{ include "easywork.secretName" (dict "root" . "domain" "keycloak-admin") }} -o jsonpath='{.data.admin-password}' | base64 -d
+  No application user is seeded — create your first real user via the Admin
+  Console (or its REST API) before anyone can log in.
+  {{ .Values.keycloak.keycloak.hostname }} must be a DIFFERENT hostname from
+  {{ if .Values.ingress.enabled }}{{ .Values.ingress.host }}{{ else }}ingress.host{{ end }},
+  and must be reachable from INSIDE the cluster by the frontend pod itself —
+  frontend/src/lib/auth.ts calls it directly for server-side token
+  exchange/refresh, not just via browser redirect. If logins redirect
+  correctly but the callback then fails, check hairpin-NAT/LoadBalancer
+  support or split-horizon DNS for this hostname before assuming the chart
+  is misconfigured.
+{{- end }}
+
 {{- if not .Values.externalSecrets.enabled }}
 {{- if not .Values.secrets.existingSecret }}
 
-Credentials were rendered into Kubernetes Secrets from the values you
-supplied (postgresql.auth.password, rabbitmq.auth.password,
-minio.auth.rootPassword, meilisearch.auth.masterKey, app.nextAuthSecret,
-app.keycloakClientSecret). Review `kubectl get secrets -n {{ .Release.Namespace }}`
-and rotate anything that was left as a placeholder before going to production.
+Credentials were rendered into Kubernetes Secrets (postgresql.auth.password,
+rabbitmq.auth.password, minio.auth.rootPassword, meilisearch.auth.masterKey,
+app.nextAuthSecret{{ if .Values.keycloak.enabled }}, app.keycloakClientSecret,
+plus keycloak-admin/keycloak-db/keycloak-realm{{ end }}). Any of these left
+blank in your values were auto-generated and are kept stable across future
+`helm upgrade` runs — do NOT pass a freshly-random value for these on a later
+upgrade, it will desync the Secret from what the already-running
+database/broker actually has and break authentication. Retrieve a generated
+value with:
+  kubectl get secret -n {{ .Release.Namespace }} <secret-name> -o jsonpath='{.data.<key>}' | base64 -d
 {{- end }}
 {{- end }}
 

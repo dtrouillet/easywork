@@ -1,5 +1,14 @@
 import { create } from "zustand";
 
+function generateUUID(): string {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return [...b]
+    .map((x, i) => ([4, 6, 8, 10].includes(i) ? "-" : "") + x.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export type UploadQueueItemStatus = "pending" | "uploading" | "done" | "error";
 
 export interface UploadQueueItem {
@@ -33,7 +42,7 @@ export const useUiStore = create<UiState>((set) => ({
       uploadQueue: [
         ...s.uploadQueue,
         ...files.map((file) => ({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           file,
           status: "pending" as const,
           progress: 0,

@@ -61,7 +61,7 @@ spec:
                   name: {{ include "easywork.secretName" (dict "root" . "domain" "app") }}
                   key: keycloak-client-secret
             - name: AUTH_KEYCLOAK_ISSUER
-              value: {{ required "app.keycloakIssuer is required" .Values.app.keycloakIssuer | quote }}
+              value: {{ include "easywork.oauthIssuerUri" . | quote }}
             {{- with .Values.frontend.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

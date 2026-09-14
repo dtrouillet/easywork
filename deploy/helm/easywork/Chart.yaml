@@ -3,12 +3,17 @@ name: easywork
 description: >-
   easywork — enterprise document management system (DMS). Deploys doc-service,
   ingest-worker, search-service and the frontend as independent Deployments,
-  plus optional Postgres/RabbitMQ/MinIO/Meilisearch dependencies.
+  plus optional Postgres/RabbitMQ/MinIO/Meilisearch/Keycloak dependencies.
 type: application
 # Chart version — bumped independently of the application release.
 version: 0.1.0
-# App version — tracks the backend/frontend release actually deployed.
-appVersion: "0.1.0"
+# App version — the default image tag every component falls back to when its
+# own `image.tag`/`image.digest` is unset (see _helpers.tpl's
+# easywork.imageRef). Must match an actual tag published by
+# .github/workflows/release.yml (i.e. a real `vX.Y.Z` git tag) — bump this by
+# hand every time a new release tag is pushed, or `helm install` with no
+# explicit image override will try to pull a tag that doesn't exist.
+appVersion: "v0.0.1"
 kubeVersion: ">=1.26.0-0"
 home: https://github.com/dtrouillet/easywork
 sources:
@@ -50,3 +55,12 @@ dependencies:
     version: "0.36.0"
     repository: "https://meilisearch.github.io/meilisearch-kubernetes"
     condition: meilisearch.enabled
+  # Optional bundled Keycloak (see docs/adr/0006-optional-bundled-keycloak-identity-provider.md).
+  # Disabled by default — SME/enterprise deployments bring their own IdP
+  # (oauth2.jwtIssuerUri / app.keycloak*). values-family.yaml enables it for a
+  # zero-config first login. Same CloudPirates vendor/versioning caveat as
+  # postgres/rabbitmq/minio above.
+  - name: keycloak
+    version: "0.21.19"
+    repository: "oci://registry-1.docker.io/cloudpirates"
+    condition: keycloak.enabled
